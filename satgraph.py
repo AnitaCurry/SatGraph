@@ -4,6 +4,7 @@ Created on 14 Apr 2016
 @author: sunshine
 '''
 import os
+import sys
 import numpy as np
 import scipy.sparse as sparse
 from mpi4py import MPI
@@ -13,6 +14,8 @@ import threading
 import Queue
 import zmq
 from time import sleep
+import snappy
+from Cython.Plex.Regexps import Empty
 
 QueueUpdatedVertex = Queue.Queue();
 
@@ -210,9 +213,11 @@ class BroadThread(threading.Thread):
 #     __UpdatedVertex = None;
     __Dtype_All = [];
     __IterationReport = None;
+    __MaxIteration = 0;
+    __stop = None;
     
     
-    def __init__(self, MPI_Comm, MPI_Size, MPI_Rank, VertexData, ProgressReport, GraphInfo, Dtype_All):
+    def __init__(self, MPI_Comm, MPI_Size, MPI_Rank, VertexData, ProgressReport, MaxIteration, GraphInfo, Dtype_All):
         threading.Thread.__init__(self);
         self.__MPI_Comm = MPI_Comm;
         self.__MPI_Size = MPI_Size;
@@ -221,24 +226,31 @@ class BroadThread(threading.Thread):
         self.__IterationReport = ProgressReport;
         self.__GraphInfo  = GraphInfo;
         self.__Dtype_All  = Dtype_All;
-    
+        self.__MaxIteration = MaxIteration;
+        self.__stop = threading.Event();
+        
+    def stop(self):
+        self.__stop.set();
+        
     def run(self):
         while True:
             if self.__MPI_Rank == 0:           
                 Str_UpdatedVertex = None;
                 Str_UpdatedVertex = QueueUpdatedVertex.get();
+#                 print len(Str_UpdatedVertex);
             else:
                 Str_UpdatedVertex = None;
-            
-            self.__MPI_Comm.barrier();    
+                  
             Str_UpdatedVertex = self.__MPI_Comm.bcast(Str_UpdatedVertex, root=0);
+            if len(Str_UpdatedVertex)==4 and Str_UpdatedVertex=='exit':
+                break;
+            
+            Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex);
             updated_vertex = np.fromstring(Str_UpdatedVertex, dtype = self.__Dtype_All[0]);
             start_id = int(updated_vertex[-1]) * self.__GraphInfo[3];
             end_id   = (int(updated_vertex[-1])+1) * self.__GraphInfo[3];
-            self.__VertexData[start_id:end_id] = updated_vertex[0:-1];
+            self.__VertexData[start_id:end_id] = updated_vertex[0:-1] + self.__VertexData[start_id:end_id];
             self.__IterationReport[int(updated_vertex[-1])] = self.__IterationReport[int(updated_vertex[-1])] + 1;
-#             if(self.__MPI_Rank == 0):
-#                 print start_id, end_id, updated_vertex.dtype;
             
 
 class UpdateThread(threading.Thread):
@@ -249,6 +261,19 @@ class UpdateThread(threading.Thread):
     __IP = '127.0.0.1';
     __Port = 17070;
     __Dtype_All = [];
+    __stop = None;
+
+    def stop(self, Rank):
+        if (Rank == 0):
+            self.__stop.set();
+            context_ = zmq.Context();
+            socket_ = context_.socket(zmq.REQ);
+            socket_.connect("tcp://%s:%s" % (self.__IP, self.__Port));
+            socket_.send("exit");
+            socket_.recv();
+        else:
+            self.__stop.set();
+            QueueUpdatedVertex.put('exit');
     
     def __init__(self, IP, Port, MPI_Size, MPI_Rank, VertexData, GraphInfo, Dtype_All):
         threading.Thread.__init__(self);
@@ -259,6 +284,7 @@ class UpdateThread(threading.Thread):
         self.__VertexData = VertexData;
         self.__GraphInfo  = GraphInfo;
         self.__Dtype_All  = Dtype_All;
+        self.__stop = threading.Event();
     
     def run(self):
         if self.__MPI_Rank == 0:
@@ -269,11 +295,18 @@ class UpdateThread(threading.Thread):
             while True:
                 string_receive = socket.recv();
                 QueueUpdatedVertex.put(string_receive);
-                socket.send("OK");
+                socket.send("ACK");
+#                 print len(string_receive)
+                if len(string_receive)==4 and string_receive == 'exit':
+                    break;
                 
         else:
             while True:
                 Str_UpdatedVertex =  QueueUpdatedVertex.get();
+                if len(Str_UpdatedVertex)==4 and Str_UpdatedVertex == 'exit':
+                    break;
+                if self.__stop.is_set():
+                    break;
                 context = zmq.Context();
                 socket = context.socket(zmq.REQ);
                 socket.connect("tcp://%s:%s" % (self.__IP, self.__Port));
@@ -289,8 +322,9 @@ class CalcThread(threading.Thread):
     __GraphInfo = [];
     __CalcFunc = None;
     __Dtype_All = [];
+    __FilterThreashold = 0;
     
-    def __init__(self, partitionID, EdgeData, VertexOut, VertexIn, VertexData, GraphInfo, CalcFunc, Dtype_All):
+    def __init__(self, partitionID, EdgeData, VertexOut, VertexIn, VertexData, GraphInfo, CalcFunc, Dtype_All, FilterThreashold):
         threading.Thread.__init__(self);
         self.__partitionID = partitionID;
         self.__EdgeData    = EdgeData;
@@ -300,6 +334,7 @@ class CalcThread(threading.Thread):
         self.__GraphInfo   = GraphInfo;
         self.__CalcFunc    = CalcFunc;
         self.__Dtype_All   = Dtype_All;
+        self.__FilterThreashold = FilterThreashold;
         
     def run(self):
         '''
@@ -311,9 +346,16 @@ class CalcThread(threading.Thread):
                                         self.__VertexData, 
                                         self.__GraphInfo,
                                         self.__Dtype_All);
+
+        start_id = self.__partitionID * self.__GraphInfo[3];
+        end_id   = (self.__partitionID + 1) * self.__GraphInfo[3];
+        UpdatedVertex = UpdatedVertex - self.__VertexData[start_id:end_id];
+        UpdatedVertex[np.where(abs(UpdatedVertex) <= self.__FilterThreashold)] = 0;
         Tmp_UpdatedData = np.append(UpdatedVertex, self.__partitionID);
         Tmp_UpdatedData = Tmp_UpdatedData.astype(self.__Dtype_All[0]);
+        
         Str_UpdatedData = Tmp_UpdatedData.tostring();
+        Str_UpdatedData = snappy.compress(Str_UpdatedData);
         QueueUpdatedVertex.put(Str_UpdatedData);
 #         print QueueUpdatedVertex.qsize();
 
@@ -328,7 +370,7 @@ class satgraph():
     __VertexPerPartition = 0;
     __GraphInfo = ('./subdata/', 0, 0, 0);
     __MPI_Comm = None;
-    __MPI_Comm_Update = None;
+#     __MPI_Comm_Update = None;
     __MPI_Size = None;
     __MPI_Rank = None;
     __PartitionInfo = {};
@@ -344,6 +386,7 @@ class satgraph():
     __MaxIteration = 10;
     __CalcFunc = None;
     __StaleNum = 0;
+    __FilterThreshold = 0;
     
     def __init__(self):
         self.__Dtype_VertexData      = np.int32;
@@ -356,6 +399,9 @@ class satgraph():
         self.__VertexPerPartition = 0;
         self.__GraphInfo = ('./subdata/', 0, 0, 0);
         self.__Port = 17070;
+    
+    def set_FilterThreshold(self, FilterThreshold):
+        self.__FilterThreshold = FilterThreshold;
     
     def set_StaleNum(self, StaleNum):
         self.__StaleNum = StaleNum; 
@@ -406,6 +452,10 @@ class satgraph():
         self.__Dtype_All = (self.__Dtype_VertexData, 
                             self.__Dtype_VertexEdgeInfo, 
                             self.__Dtype_EdgeData);
+     
+    @property
+    def FilterThreshold(self):
+        return self.__FilterThreshold;
      
     @property
     def CalcFunc(self):
@@ -472,8 +522,7 @@ class satgraph():
         self.__MPI_Comm = MPI.COMM_WORLD;
         self.__MPI_Size = self.__MPI_Comm.Get_size();
         self.__MPI_Rank = self.__MPI_Comm.Get_rank();
-        
-        self.__MPI_Comm_Update = MPI.Comm.Dup(self.__MPI_Comm);
+
         '''
         Initial the PartitionInfo
         '''
@@ -507,7 +556,7 @@ class satgraph():
         UpdateVertexThread.start();
         
         BroadVertexThread = BroadThread(self.__MPI_Comm, self.__MPI_Size, 
-                     self.__MPI_Rank, self.__VertexData, self.__IterationReport,
+                     self.__MPI_Rank, self.__VertexData, self.__IterationReport, self.__MaxIteration,
                      self.__GraphInfo,self.__Dtype_All);
         BroadVertexThread.start();
         
@@ -534,6 +583,7 @@ class satgraph():
                     break;
                 else:
                     sleep(0.01);
+            
             new_partion =  AllTaskQueue.get();
             new_thead = CalcThread(new_partion, 
                              self.__EdgeData[new_partion], 
@@ -542,7 +592,8 @@ class satgraph():
                              self.__VertexData, 
                              self.__GraphInfo,
                              self.__CalcFunc,
-                             self.__Dtype_All); 
+                             self.__Dtype_All,
+                             self.__FilterThreshold); 
             
             CurrentIterationNum = TaskTotalNum/len(self.__PartitionInfo[self.__MPI_Rank]);
             NewIteration = False;
@@ -558,9 +609,22 @@ class satgraph():
             new_thead.start();
             TaskThreadPool.append(new_thead);
             
-            if NewIteration:
-                if self.__MPI_Rank == 0:
-                    print self.__VertexData;
+#             if NewIteration:
+#                 if self.__MPI_Rank == 0:
+#                     print self.__VertexData;
+                    
+        if (self.__MPI_Rank != 0):
+            UpdateVertexThread.stop(-1);
+        else:
+            sleep(0.1);
+            UpdateVertexThread.stop(0);
+        BroadVertexThread.stop();
+        BroadVertexThread.join(); 
+        print "BroadVertexThread->", self.__MPI_Rank;
+        UpdateVertexThread.join();
+        print "UpdateVertexThread->", self.__MPI_Rank;
+
+        
 
 if __name__ == '__main__':
     Dtype_VertexData      = np.float32;
@@ -580,8 +644,9 @@ if __name__ == '__main__':
     test_graph.set_IP('localhost');
     test_graph.set_port(18085);
     test_graph.set_ThreadNum(1);
-    test_graph.set_MaxIteration(20);
-    test_graph.set_StaleNum(2);
+    test_graph.set_MaxIteration(50);
+    test_graph.set_StaleNum(0);
+    test_graph.set_FilterThreshold(0.00000001);
     test_graph.set_CalcFunc(calc_pagerank);
     
 #    a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
@@ -589,5 +654,5 @@ if __name__ == '__main__':
 #         graph_to_matrix('./twitter2.txt', './', 81306, 10, Dtype_All);
     #81310, 8131, 10    
     test_graph.run('pagerank') 
+#     os._exit(0);
 #     print PartitionInfo[MPI_Rank];
-    pass
