@@ -16,6 +16,7 @@ import zmq
 from time import sleep
 import snappy
 from Cython.Plex.Regexps import Empty
+from numpy import linalg as LA
 
 QueueUpdatedVertex = Queue.Queue();
 
@@ -154,79 +155,73 @@ def intial_vertex(GraphInfo,
                   Dtype_All,
                   Str_Policy = 'ones'):
     if Str_Policy == 'ones':
-        return np.ones(GraphInfo[1], dtype = Dtype_All[0]);
+        return np.ones(GraphInfo['VertexNum'], dtype = Dtype_All['VertexData']);
     elif Str_Policy == 'zeros':
-        return np.zeros(GraphInfo[1], dtype = Dtype_All[0]);
+        return np.zeros(GraphInfo['VertexNum'], dtype = Dtype_All['VertexData']);
     elif Str_Policy == 'random':
-        temp = np.random.random(GraphInfo[1]);
-        temp = temp.astype(Dtype_All[0]);
+        temp = np.random.random(GraphInfo['VertexNum']);
+        temp = temp.astype(Dtype_All['VertexData']);
         return temp;
     elif Str_Policy == 'pagerank':
-        temp = np.zeros(GraphInfo[1], dtype=Dtype_All[0]);
-        temp = temp + 1.0/GraphInfo[1];
-        temp = temp.astype(Dtype_All[0])
+        temp = np.zeros(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData']);
+        temp = temp + 1.0/GraphInfo['VertexNum'];
+        temp = temp.astype(Dtype_All['VertexData'])
         return temp;
     else:
-        return np.ones(GraphInfo[1], dtype = Dtype_All[0]);
+        return np.ones(GraphInfo['VertexNum'], dtype = Dtype_All[0]);
              
 def load_edgedata(PartitionID, GraphInfo, Dtype_All):
-    _file = open(GraphInfo[0] + str(PartitionID) + '.edge', 'r');
-    temp = np.fromfile(_file, dtype=Dtype_All[1]);
-    data = np.ones(temp[0], dtype=Dtype_All[2]);
+    _file = open(GraphInfo['DataPath'] + str(PartitionID) + '.edge', 'r');
+    temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo']);
+    data = np.ones(temp[0], dtype=Dtype_All['EdgeData']);
     indices = temp[3:3+int(temp[1])];
     indptr  = temp[3+int(temp[1]):3+int(temp[1])+int(temp[2])];
     #csr_matrix((data, indices, indptr), [shape=(M, N)])
-    mat_data = sparse.csr_matrix((data, indices, indptr), shape=(GraphInfo[3], GraphInfo[1]));
+    mat_data = sparse.csr_matrix((data, indices, indptr), shape=(GraphInfo['VertexPerPartition'], GraphInfo['VertexNum']));
     _file.close();
     return mat_data;
 
 def load_vertexin(GraphInfo, Dtype_All):
-    _file = open(GraphInfo[0] + 'vertexin', 'r');
-    temp = np.fromfile(_file, dtype = Dtype_All[1]);
+    _file = open(GraphInfo['DataPath'] + 'vertexin', 'r');
+    temp = np.fromfile(_file, dtype = Dtype_All['VertexEdgeInfo']);
     _file.close();
     return temp;
 
 def load_vertexout(GraphInfo, Dtype_All):
-    _file = open(GraphInfo[0] + 'vertexout', 'r');
-    temp = np.fromfile(_file, dtype = Dtype_All[1]);
+    _file = open(GraphInfo['DataPath'] + 'vertexout', 'r');
+    temp = np.fromfile(_file, dtype = Dtype_All['VertexEdgeInfo']);
     _file.close();
     return temp;
-
-
-#     DataPath = './subdata/'
-#     VertexNum = 81310;
-#     PartitionNum = 10;
-#     VertexPerPartition = 8131;
-#     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexPerPartition);
-
-def calc_pagerank(EdgeData, VertexOut, VertexIn, VertexData, GraphInfo, Dtype_All):
-    UpdatedVertex = EdgeData.dot(VertexData/VertexOut) * 0.85 + 1.0/GraphInfo[1];
-    UpdatedVertex = UpdatedVertex.astype(Dtype_All[0]);
+# 
+#         self.__DataInfo['EdgeData']  = None;
+#         self.__DataInfo['VertexOut']  = None;
+#         self.__DataInfo['VertexIn']  = None;
+#         self.__DataInfo['VertexData']  = None;
+def calc_pagerank(PartitionID, DataInfo, GraphInfo, Dtype_All):
+    UpdatedVertex = DataInfo['EdgeData'][PartitionID].dot(DataInfo['VertexData']/DataInfo['VertexOut']) * 0.85 + 1.0/GraphInfo['VertexNum'];
+    UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData']);
     return UpdatedVertex;
 
 class BroadThread(threading.Thread):
-    __MPI_Comm = None;
-    __MPI_Size = 0;
-    __MPI_Rank = 0;
-    __VertexData = None;
-    __GraphInfo = [];
+#         self.__MPIInfo['MPI_Comm'] = self.__MPI_Comm;
+#         self.__MPIInfo['MPI_Size'] = self.__MPI_Size;
+#         self.__MPIInfo['MPI_Rank'] = self.__MPI_Rank;
+    __MPIInfo = {};
+    __DataInfo = None;
+    __GraphInfo = {};
 #     __UpdatedVertex = None;
-    __Dtype_All = [];
-    __IterationReport = None;
-    __MaxIteration = 0;
-    __stop = None;
+    __Dtype_All = {};
+    __ControlInfo = None;
+    __stop = None; 
     
-    
-    def __init__(self, MPI_Comm, MPI_Size, MPI_Rank, VertexData, ProgressReport, MaxIteration, GraphInfo, Dtype_All):
+    def __init__(self, MPIInfo, DataInfo, ControlInfo, GraphInfo, Dtype_All):    
         threading.Thread.__init__(self);
-        self.__MPI_Comm = MPI_Comm;
-        self.__MPI_Size = MPI_Size;
-        self.__MPI_Rank = MPI_Rank;
-        self.__VertexData = VertexData;
-        self.__IterationReport = ProgressReport;
+        self.__MPIInfo = MPIInfo;
+
+        self.__DataInfo = DataInfo;
+        self.__ControlInfo = ControlInfo;
         self.__GraphInfo  = GraphInfo;
         self.__Dtype_All  = Dtype_All;
-        self.__MaxIteration = MaxIteration;
         self.__stop = threading.Event();
         
     def stop(self):
@@ -234,33 +229,34 @@ class BroadThread(threading.Thread):
         
     def run(self):
         while True:
-            if self.__MPI_Rank == 0:           
+            if self.__MPIInfo['MPI_Rank']  == 0:           
                 Str_UpdatedVertex = None;
                 Str_UpdatedVertex = QueueUpdatedVertex.get();
 #                 print len(Str_UpdatedVertex);
             else:
                 Str_UpdatedVertex = None;
                   
-            Str_UpdatedVertex = self.__MPI_Comm.bcast(Str_UpdatedVertex, root=0);
+            Str_UpdatedVertex = self.__MPIInfo['MPI_Comm'] .bcast(Str_UpdatedVertex, root=0);
             if len(Str_UpdatedVertex)==4 and Str_UpdatedVertex=='exit':
                 break;
             
             Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex);
-            updated_vertex = np.fromstring(Str_UpdatedVertex, dtype = self.__Dtype_All[0]);
-            start_id = int(updated_vertex[-1]) * self.__GraphInfo[3];
-            end_id   = (int(updated_vertex[-1])+1) * self.__GraphInfo[3];
-            self.__VertexData[start_id:end_id] = updated_vertex[0:-1] + self.__VertexData[start_id:end_id];
-            self.__IterationReport[int(updated_vertex[-1])] = self.__IterationReport[int(updated_vertex[-1])] + 1;
+            updated_vertex = np.fromstring(Str_UpdatedVertex, dtype = self.__Dtype_All['VertexData']);
             
-
+            if int(updated_vertex[-1]) in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
+                pass;
+            else:    
+                start_id = int(updated_vertex[-1]) * self.__GraphInfo['VertexPerPartition'];
+                end_id   = (int(updated_vertex[-1])+1) * self.__GraphInfo['VertexPerPartition'];
+                self.__DataInfo['VertexData'][start_id:end_id] = updated_vertex[0:-1] + self.__DataInfo['VertexData'][start_id:end_id];
+            self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1;
+            
 class UpdateThread(threading.Thread):
-    __MPI_Size = 0;
-    __MPI_Rank = 0;
-    __VertexData = None;
-    __GraphInfo = [];
+    __MPIInfo = {};
+    __GraphInfo = {};
     __IP = '127.0.0.1';
     __Port = 17070;
-    __Dtype_All = [];
+    __Dtype_All = {};
     __stop = None;
 
     def stop(self, Rank):
@@ -275,19 +271,17 @@ class UpdateThread(threading.Thread):
             self.__stop.set();
             QueueUpdatedVertex.put('exit');
     
-    def __init__(self, IP, Port, MPI_Size, MPI_Rank, VertexData, GraphInfo, Dtype_All):
+    def __init__(self, IP, Port, MPIInfo, GraphInfo, Dtype_All):
         threading.Thread.__init__(self);
         self.__IP = IP;
         self.__Port = Port;
-        self.__MPI_Size = MPI_Size;
-        self.__MPI_Rank = MPI_Rank;
-        self.__VertexData = VertexData;
+        self.__MPIInfo = MPIInfo;
         self.__GraphInfo  = GraphInfo;
         self.__Dtype_All  = Dtype_All;
         self.__stop = threading.Event();
     
     def run(self):
-        if self.__MPI_Rank == 0:
+        if self.__MPIInfo['MPI_Rank'] == 0:
             context = zmq.Context();
             socket = context.socket(zmq.REP);
             print (self.__IP, self.__Port);
@@ -299,7 +293,6 @@ class UpdateThread(threading.Thread):
 #                 print len(string_receive)
                 if len(string_receive)==4 and string_receive == 'exit':
                     break;
-                
         else:
             while True:
                 Str_UpdatedVertex =  QueueUpdatedVertex.get();
@@ -314,45 +307,36 @@ class UpdateThread(threading.Thread):
                 socket.recv();
 
 class CalcThread(threading.Thread):
-    __partitionID = 0;
-    __EdgeData = [];
-    __VertexOut = [];
-    __VertexIn = [];
-    __VertexData = [];
-    __GraphInfo = [];
-    __CalcFunc = None;
-    __Dtype_All = [];
-    __FilterThreashold = 0;
+    __PartitionID = 0;
+    __GraphInfo = {};
+    __Dtype_All = {};
+    __ControlInfo = None;
+    __DataInfo = None;
     
-    def __init__(self, partitionID, EdgeData, VertexOut, VertexIn, VertexData, GraphInfo, CalcFunc, Dtype_All, FilterThreashold):
+    def __init__(self, PartitionID, DataInfo, GraphInfo, ControlInfo, Dtype_All):
         threading.Thread.__init__(self);
-        self.__partitionID = partitionID;
-        self.__EdgeData    = EdgeData;
-        self.__VertexOut   = VertexOut;
-        self.__VertexIn    = VertexIn;
-        self.__VertexData  = VertexData;
+        self.__PartitionID = PartitionID;
+        self.__DataInfo    = DataInfo;
         self.__GraphInfo   = GraphInfo;
-        self.__CalcFunc    = CalcFunc;
+        self.__ControlInfo = ControlInfo;
         self.__Dtype_All   = Dtype_All;
-        self.__FilterThreashold = FilterThreashold;
         
     def run(self):
-        '''
-        pagerank as example
-        '''
-        UpdatedVertex = self.__CalcFunc(self.__EdgeData, 
-                                        self.__VertexOut, 
-                                        self.__VertexIn, 
-                                        self.__VertexData, 
-                                        self.__GraphInfo,
-                                        self.__Dtype_All);
+        UpdatedVertex = self.__ControlInfo['CalcFunc'](self.__PartitionID, 
+                                                       self.__DataInfo,
+                                                       self.__GraphInfo,
+                                                       self.__Dtype_All);
 
-        start_id = self.__partitionID * self.__GraphInfo[3];
-        end_id   = (self.__partitionID + 1) * self.__GraphInfo[3];
-        UpdatedVertex = UpdatedVertex - self.__VertexData[start_id:end_id];
-        UpdatedVertex[np.where(abs(UpdatedVertex) <= self.__FilterThreashold)] = 0;
-        Tmp_UpdatedData = np.append(UpdatedVertex, self.__partitionID);
-        Tmp_UpdatedData = Tmp_UpdatedData.astype(self.__Dtype_All[0]);
+        start_id = self.__PartitionID * self.__GraphInfo['VertexPerPartition'];
+        end_id   = (self.__PartitionID + 1) * self.__GraphInfo['VertexPerPartition'];
+        UpdatedVertex = UpdatedVertex - self.__DataInfo['VertexData'][start_id:end_id];
+        UpdatedVertex[np.where(abs(UpdatedVertex) <= self.__ControlInfo['FilterThreshold'])] = 0;
+        UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData']);
+        #Update local data
+        self.__DataInfo['VertexData'][start_id:end_id] = self.__DataInfo['VertexData'][start_id:end_id] + UpdatedVertex;
+        
+        Tmp_UpdatedData = np.append(UpdatedVertex, self.__PartitionID);
+        Tmp_UpdatedData = Tmp_UpdatedData.astype(self.__Dtype_All['VertexData']);
         
         Str_UpdatedData = Tmp_UpdatedData.tostring();
         Str_UpdatedData = snappy.compress(Str_UpdatedData);
@@ -360,60 +344,83 @@ class CalcThread(threading.Thread):
 #         print QueueUpdatedVertex.qsize();
 
 class satgraph():
-    __Dtype_VertexData      = np.int32;
-    __Dtype_VertexEdgeInfo  = np.int32;
-    __Dtype_EdgeData        = np.int32;
-    __Dtype_All             = (np.int32, np.int32, np.int32);
-    __DataPath = './subdata/';
-    __VertexNum = 0;
-    __PartitionNum = 0;
-    __VertexPerPartition = 0;
-    __GraphInfo = ('./subdata/', 0, 0, 0);
-    __MPI_Comm = None;
-#     __MPI_Comm_Update = None;
-    __MPI_Size = None;
-    __MPI_Rank = None;
-    __PartitionInfo = {};
-    __EdgeData  = {};
-    __VertexOut = [];
-    __VertexIn = [];
-    __VertexData = [];
+#     __Dtype_VertexData      = np.int32;
+#     __Dtype_VertexEdgeInfo  = np.int32;
+#     __Dtype_EdgeData        = np.int32;
+    __Dtype_All             = {};
+    
+#     __DataPath = './subdata/';
+#     __VertexNum = 0;
+#     __PartitionNum = 0;
+#     __VertexPerPartition = 0;
+    __GraphInfo = {};
+    
+#     __MPI_Comm = None;
+#     __MPI_Size = None;
+#     __MPI_Rank = None;
+    __MPIInfo  = {};
+    
+#     __PartitionInfo = {};
+#     __IterationNum = 0;
+#     __IterationReport = None;
+#     __MaxIteration = 10;
+#     __StaleNum = 0;
+#     __FilterThreshold = 0;
+#     __CalcFunc = None;
+    __ControlInfo = {};
+
+#     __EdgeData  = {};
+#     __VertexOut = [];
+#     __VertexIn = [];
+#     __VertexData = [];
+    __DataInfo = {};
+    
     __Port = 17070;
     __IP   = '127.0.0.1';
-    __IterationNum = 0;
-    __IterationReport = None;
-    __ThreadNum = 1;
-    __MaxIteration = 10;
-    __CalcFunc = None;
-    __StaleNum = 0;
-    __FilterThreshold = 0;
+    
+    __ThreadNum = 1;   
     
     def __init__(self):
-        self.__Dtype_VertexData      = np.int32;
-        self.__Dtype_VertexEdgeInfo  = np.int32;
-        self.__Dtype_EdgeData        = np.int32;
-        self.__Dtype_All             = (np.int32, np.int32, np.int32);
+        self.__Dtype_All['VertexData'] = np.int32;
+        self.__Dtype_All['VertexEdgeInfo'] = np.int32;
+        self.__Dtype_All['EdgeData'] = np.int32;
+        
         self.__DataPath = './subdata/';
         self.__VertexNum = 0;
         self.__PartitionNum = 0;
         self.__VertexPerPartition = 0;
-        self.__GraphInfo = ('./subdata/', 0, 0, 0);
-        self.__Port = 17070;
+        self.__GraphInfo['DataPath'] = self.__DataPath;
+        self.__GraphInfo['VertexNum'] = self.__VertexNum;
+        self.__GraphInfo['PartitionNum'] = self.__PartitionNum;
+        self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition;
+        
+        self.__ControlInfo['PartitionInfo'] = {};
+        self.__ControlInfo['IterationNum'] = 0;
+        self.__ControlInfo['IterationReport'] = None;
+        self.__ControlInfo['MaxIteration'] = 10;
+        self.__ControlInfo['StaleNum'] = 0;
+        self.__ControlInfo['FilterThreshold'] = 0;
+        self.__ControlInfo['CalcFunc'] = None;
+        
+        self.__DataInfo['EdgeData']  = {};
+        self.__DataInfo['VertexOut']  = None;
+        self.__DataInfo['VertexIn']  = None;
+        self.__DataInfo['VertexData']  = None;
     
     def set_FilterThreshold(self, FilterThreshold):
-        self.__FilterThreshold = FilterThreshold;
+        self.__ControlInfo['FilterThreshold'] = FilterThreshold;
     
     def set_StaleNum(self, StaleNum):
-        self.__StaleNum = StaleNum; 
+        self.__ControlInfo['StaleNum'] = StaleNum; 
     
     def set_CalcFunc(self, CalcFunc):
-        self.__CalcFunc = CalcFunc;
+        self.__ControlInfo['CalcFunc'] = CalcFunc;
         
     def set_ThreadNum(self, ThreadNum):
         self.__ThreadNum = ThreadNum;        
         
     def set_MaxIteration(self, MaxIteration):
-        self.__MaxIteration = MaxIteration;
+        self.__ControlInfo['MaxIteration'] = MaxIteration;
     
     def set_port(self, Port):
         self.__Port = Port;
@@ -421,57 +428,42 @@ class satgraph():
     def set_IP(self, IP):
         self.__IP = IP;
         
-    def set_GraphInfo(self, GraphInfo):
-        self.__GraphInfo = GraphInfo;
+    def set_GraphInfo(self, GraphInfo):        
         self.__DataPath  = GraphInfo[0];
         self.__VertexNum = GraphInfo[1];
         self.__PartitionNum = GraphInfo[2];
         self.__VertexPerPartition = GraphInfo[3];
-        self.__IterationReport = np.zeros(GraphInfo[2]);
+        self.__GraphInfo['DataPath'] = self.__DataPath;
+        self.__GraphInfo['VertexNum'] = self.__VertexNum;
+        self.__GraphInfo['PartitionNum'] = self.__PartitionNum;
+        self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition;             
+        self.__ControlInfo['IterationReport'] = np.zeros(self.__GraphInfo['PartitionNum']);
     
     def set_Dtype_All(self, Dtype_All):
-        self.__Dtype_All = Dtype_All;
-        self.__Dtype_VertexData      = Dtype_All[0];
-        self.__Dtype_VertexEdgeInfo  = Dtype_All[1];
-        self.__Dtype_EdgeData        = Dtype_All[2];
+        self.__Dtype_All['VertexData'] = Dtype_All[0];
+        self.__Dtype_All['VertexEdgeInfo'] = Dtype_All[1];
+        self.__Dtype_All['EdgeData'] = Dtype_All[2];
     
     def set_Dtype_VertexData(self, Dtype_VertexData):
-        self.__Dtype_VertexData = Dtype_VertexData;
-        self.__Dtype_All = (self.__Dtype_VertexData, 
-                            self.__Dtype_VertexEdgeInfo, 
-                            self.__Dtype_EdgeData);
+        self.__Dtype_All['VertexData'] = Dtype_VertexData;
         
     def set_Dtype_VertexEdgeInfo(self, Dtype_VertexEdgeInfo):
-        self.__Dtype_VertexEdgeInfo = Dtype_VertexEdgeInfo;
-        self.__Dtype_All = (self.__Dtype_VertexData, 
-                            self.__Dtype_VertexEdgeInfo, 
-                            self.__Dtype_EdgeData);
+        self.__Dtype_All['VertexEdgeInfo'] = Dtype_VertexEdgeInfo;
         
     def set_Dtype_EdgeData (self, Dtype_EdgeData ):
-        self.__Dtype_EdgeData  = Dtype_EdgeData;
-        self.__Dtype_All = (self.__Dtype_VertexData, 
-                            self.__Dtype_VertexEdgeInfo, 
-                            self.__Dtype_EdgeData);
+        self.__Dtype_All['EdgeData'] = Dtype_VertexEdgeInfo;
      
     @property
-    def FilterThreshold(self):
-        return self.__FilterThreshold;
+    def ControlInfo(self):
+        return self.__ControlInfo;
      
     @property
     def CalcFunc(self):
         return self.__CalcFunc;
-    
-    @property
-    def StaleNum(self):
-        return self.__StaleNum;
        
     @property
     def Port(self):
         return self.__Port;
-    
-    @property
-    def MaxIteration(self):
-        return self.__MaxIteration;
         
     @property
     def ThreadNum(self):
@@ -488,141 +480,108 @@ class satgraph():
     @property
     def GraphInfo(self):
         return self.__GraphInfo;
-
-    @property
-    def MPI_Size(self):
-        return self.__MPI_Size;
     
     @property
-    def MPI_Rank(self):
-        return self.__MPI_Rank;
+    def DataInfo(self):
+        return self.__DataInfo;
     
-    @property
-    def PartitionInfo(self):
-        return self.__PartitionInfo;
-    
-    @property
-    def EdgeData(self):
-        return self.__EdgeData;
-    
-    @property
-    def VertexOut(self):
-        return self.__VertexOut;
-    
-    @property
-    def VertexIn(self):
-        return self.__VertexIn;
-    
-    @property
-    def VertexData(self):
-        return self.__VertexData;
-    
-    def run(self, Str_VertexType):
-
-        self.__MPI_Comm = MPI.COMM_WORLD;
-        self.__MPI_Size = self.__MPI_Comm.Get_size();
-        self.__MPI_Rank = self.__MPI_Comm.Get_rank();
-
-        '''
-        Initial the PartitionInfo
-        '''
-        PartitionPerNode = int(math.floor(PartitionNum*1.0/self.__MPI_Size));
-        
-        for i in range(self.__MPI_Size):
-            if i == self.__MPI_Size-1:
-                self.__PartitionInfo[i] = range(i*PartitionPerNode, PartitionNum);
+    def check_threadpool(self, threadpool):
+        for i in threadpool:
+            if i.is_alive():
+                pass;
             else:
-                self.__PartitionInfo[i] = range(i*PartitionPerNode, (i+1)*PartitionPerNode);   
+                threadpool.remove(i);
+        return len(threadpool);
+    
+    def run(self, Str_InitialVertex='zero'):
+
+        self.__MPIInfo['MPI_Comm'] = MPI.COMM_WORLD;
+        self.__MPIInfo['MPI_Size'] = self.__MPIInfo['MPI_Comm'].Get_size();
+        self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank();
+
+        PartitionPerNode_ = int(math.floor(self.__GraphInfo['PartitionNum']*1.0/self.__MPIInfo['MPI_Size']));
+        
+        for i in range(self.__MPIInfo['MPI_Size']):
+            if i == self.__MPIInfo['MPI_Size']-1:
+                self.__ControlInfo['PartitionInfo'][i] = range(i*PartitionPerNode_, self.__GraphInfo['PartitionNum']);
+            else:
+                self.__ControlInfo['PartitionInfo'][i] = range(i*PartitionPerNode_, (i+1)*PartitionPerNode_);   
         
         '''
         load data to cache
         '''
-        for i in self.__PartitionInfo[self.__MPI_Rank]:
-            self.__EdgeData[i]  = load_edgedata(i, self.__GraphInfo, self.__Dtype_All);
-        self.__VertexOut = load_vertexout(self.__GraphInfo, self.__Dtype_All);
+        for i in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
+            self.__DataInfo['EdgeData'][i]  = load_edgedata(i, self.__GraphInfo, self.__Dtype_All);
+        self.__DataInfo['VertexOut'] = load_vertexout(self.__GraphInfo, self.__Dtype_All);
         '''
         Initial the vertex data
         '''
-        self.__VertexData = intial_vertex(self.__GraphInfo, self.__Dtype_All, Str_VertexType);
+        self.__DataInfo['VertexData'] = intial_vertex(self.__GraphInfo, self.__Dtype_All, Str_InitialVertex);
         
-        #ID, MPI_Comm, MPI_Size, MPI_Rank, VertexData, GraphInfo, Dtype_All
         '''
         Communication Threads
         '''
-        UpdateVertexThread = UpdateThread(self.__IP, self.__Port, 
-                                          self.__MPI_Size, self.__MPI_Rank, 
-                                          self.__VertexData, self.__GraphInfo,
-                                          self.__Dtype_All);
+        UpdateVertexThread = UpdateThread(self.__IP, self.__Port, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All);
         UpdateVertexThread.start();
         
-        BroadVertexThread = BroadThread(self.__MPI_Comm, self.__MPI_Size, 
-                     self.__MPI_Rank, self.__VertexData, self.__IterationReport, self.__MaxIteration,
-                     self.__GraphInfo,self.__Dtype_All);
+        BroadVertexThread = BroadThread(self.__MPIInfo, self.__DataInfo, 
+                                        self.__ControlInfo, self.__GraphInfo, 
+                                        self.__Dtype_All);
         BroadVertexThread.start();
         
-        
         AllTaskQueue = Queue.Queue();
-        for i in range(self.__MaxIteration):
-            for j in self.__PartitionInfo[self.__MPI_Rank]:
+        for i in range(self.__ControlInfo['MaxIteration']):
+            for j in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
                 AllTaskQueue.put(j);
-        
-        def check_threadpool(threadpool):
-            for i in threadpool:
-                if i.is_alive():
-                    pass;
-                else:
-                    threadpool.remove(i);
-            return len(threadpool);
+              
         TaskThreadPool = [];
         TaskTotalNum = 0;
         
+        if self.__MPIInfo['MPI_Rank'] == 0:
+            Old_Vertex_ = self.__DataInfo['VertexData'].copy();
+        
         while not AllTaskQueue.empty():           
             while True:
-                running_num =  check_threadpool(TaskThreadPool);
-                if  running_num < self.__MaxIteration:
+                running_num =  self.check_threadpool(TaskThreadPool);
+                if  running_num < self.__ControlInfo['MaxIteration']:
                     break;
                 else:
                     sleep(0.01);
             
             new_partion =  AllTaskQueue.get();
-            new_thead = CalcThread(new_partion, 
-                             self.__EdgeData[new_partion], 
-                             self.__VertexOut, 
-                             self.__VertexIn, 
-                             self.__VertexData, 
-                             self.__GraphInfo,
-                             self.__CalcFunc,
-                             self.__Dtype_All,
-                             self.__FilterThreshold); 
+            new_thead = CalcThread(new_partion, self.__DataInfo, self.__GraphInfo, 
+                                   self.__ControlInfo, self.__Dtype_All); 
             
-            CurrentIterationNum = TaskTotalNum/len(self.__PartitionInfo[self.__MPI_Rank]);
+            CurrentIterationNum = TaskTotalNum/len(self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]);
             NewIteration = False;
-            if self.__IterationNum != CurrentIterationNum:
-                self.__IterationNum = CurrentIterationNum;
+            if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
+                self.__ControlInfo['IterationNum'] = CurrentIterationNum;
                 NewIteration = True;
             TaskTotalNum = TaskTotalNum + 1;
             
             while True:
-                if (self.__IterationNum - self.__IterationReport.min()) <= self.__StaleNum:
+                if (self.__ControlInfo['IterationNum'] - self.__ControlInfo['IterationReport'].min()) <= self.__ControlInfo['StaleNum']:
                     break;
                 sleep(0.01);
             new_thead.start();
             TaskThreadPool.append(new_thead);
             
-#             if NewIteration:
-#                 if self.__MPI_Rank == 0:
-#                     print self.__VertexData;
+            if NewIteration:
+                if self.__MPIInfo['MPI_Rank'] == 0:
+                    print CurrentIterationNum, '->', LA.norm(self.__DataInfo['VertexData']-Old_Vertex_);
+                    Old_Vertex_ = self.__DataInfo['VertexData'].copy();
+#                     print self.__DataInfo['VertexData'];
                     
-        if (self.__MPI_Rank != 0):
+        if (self.__MPIInfo['MPI_Rank'] != 0):
             UpdateVertexThread.stop(-1);
         else:
             sleep(0.1);
             UpdateVertexThread.stop(0);
         BroadVertexThread.stop();
         BroadVertexThread.join(); 
-        print "BroadVertexThread->", self.__MPI_Rank;
+        print "BroadVertexThread->", self.__MPIInfo['MPI_Rank'];
         UpdateVertexThread.join();
-        print "UpdateVertexThread->", self.__MPI_Rank;
+        print "UpdateVertexThread->", self.__MPIInfo['MPI_Rank'];
 
         
 
@@ -645,7 +604,7 @@ if __name__ == '__main__':
     test_graph.set_port(18085);
     test_graph.set_ThreadNum(1);
     test_graph.set_MaxIteration(50);
-    test_graph.set_StaleNum(0);
+    test_graph.set_StaleNum(2);
     test_graph.set_FilterThreshold(0.00000001);
     test_graph.set_CalcFunc(calc_pagerank);
     
