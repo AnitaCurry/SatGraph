@@ -485,7 +485,7 @@ class satgraph():
     def DataInfo(self):
         return self.__DataInfo;
     
-    def check_threadpool(self, threadpool):
+    def __check_threadpool(self, threadpool):
         for i in threadpool:
             if i.is_alive():
                 pass;
@@ -493,14 +493,28 @@ class satgraph():
                 threadpool.remove(i);
         return len(threadpool);
     
-    def run(self, Str_InitialVertex='zero'):
-
+    def __wait_for_threadslot(self, TaskThreadPool_):
+        while True:
+            running_num =  self.__check_threadpool(TaskThreadPool_);
+            if  running_num < self.__ControlInfo['MaxIteration']:
+                break;
+            else:
+                sleep(0.01);
+                
+    def __sync(self):
+        while True:
+            if (self.__ControlInfo['IterationNum'] - self.__ControlInfo['IterationReport'].min()) <= self.__ControlInfo['StaleNum']:
+                break;
+            sleep(0.01);
+        
+    def __MPI_Initial(self):
         self.__MPIInfo['MPI_Comm'] = MPI.COMM_WORLD;
         self.__MPIInfo['MPI_Size'] = self.__MPIInfo['MPI_Comm'].Get_size();
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank();
-
+    
+    def run(self, Str_InitialVertex='zero'):
+        self.__MPI_Initial();
         PartitionPerNode_ = int(math.floor(self.__GraphInfo['PartitionNum']*1.0/self.__MPIInfo['MPI_Size']));
-        
         for i in range(self.__MPIInfo['MPI_Size']):
             if i == self.__MPIInfo['MPI_Size']-1:
                 self.__ControlInfo['PartitionInfo'][i] = range(i*PartitionPerNode_, self.__GraphInfo['PartitionNum']);
@@ -516,16 +530,24 @@ class satgraph():
         '''
         Initial the vertex data
         '''
-        self.__DataInfo['VertexData'] = intial_vertex(self.__GraphInfo, self.__Dtype_All, Str_InitialVertex);
+        self.__DataInfo['VertexData'] = intial_vertex(self.__GraphInfo, 
+                                                      self.__Dtype_All, 
+                                                      Str_InitialVertex);
         
         '''
         Communication Threads
         '''
-        UpdateVertexThread = UpdateThread(self.__IP, self.__Port, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All);
+        UpdateVertexThread = UpdateThread(self.__IP, 
+                                          self.__Port, 
+                                          self.__MPIInfo, 
+                                          self.__GraphInfo, 
+                                          self.__Dtype_All);
         UpdateVertexThread.start();
         
-        BroadVertexThread = BroadThread(self.__MPIInfo, self.__DataInfo, 
-                                        self.__ControlInfo, self.__GraphInfo, 
+        BroadVertexThread = BroadThread(self.__MPIInfo, 
+                                        self.__DataInfo, 
+                                        self.__ControlInfo, 
+                                        self.__GraphInfo, 
                                         self.__Dtype_All);
         BroadVertexThread.start();
         
@@ -541,16 +563,14 @@ class satgraph():
             Old_Vertex_ = self.__DataInfo['VertexData'].copy();
         
         while not AllTaskQueue.empty():           
-            while True:
-                running_num =  self.check_threadpool(TaskThreadPool);
-                if  running_num < self.__ControlInfo['MaxIteration']:
-                    break;
-                else:
-                    sleep(0.01);
+            self.__wait_for_threadslot(TaskThreadPool);
             
             new_partion =  AllTaskQueue.get();
-            new_thead = CalcThread(new_partion, self.__DataInfo, self.__GraphInfo, 
-                                   self.__ControlInfo, self.__Dtype_All); 
+            new_thead = CalcThread(new_partion, 
+                                   self.__DataInfo, 
+                                   self.__GraphInfo, 
+                                   self.__ControlInfo, 
+                                   self.__Dtype_All); 
             
             CurrentIterationNum = TaskTotalNum/len(self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]);
             NewIteration = False;
@@ -559,16 +579,13 @@ class satgraph():
                 NewIteration = True;
             TaskTotalNum = TaskTotalNum + 1;
             
-            while True:
-                if (self.__ControlInfo['IterationNum'] - self.__ControlInfo['IterationReport'].min()) <= self.__ControlInfo['StaleNum']:
-                    break;
-                sleep(0.01);
+            self.__sync();
             new_thead.start();
             TaskThreadPool.append(new_thead);
             
             if NewIteration:
                 if self.__MPIInfo['MPI_Rank'] == 0:
-                    print CurrentIterationNum, '->', LA.norm(self.__DataInfo['VertexData']-Old_Vertex_);
+                    print CurrentIterationNum, '->', 10000*LA.norm(self.__DataInfo['VertexData']-Old_Vertex_);
                     Old_Vertex_ = self.__DataInfo['VertexData'].copy();
 #                     print self.__DataInfo['VertexData'];
                     
@@ -582,8 +599,6 @@ class satgraph():
         print "BroadVertexThread->", self.__MPIInfo['MPI_Rank'];
         UpdateVertexThread.join();
         print "UpdateVertexThread->", self.__MPIInfo['MPI_Rank'];
-
-        
 
 if __name__ == '__main__':
     Dtype_VertexData      = np.float32;
@@ -602,10 +617,10 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo);
     test_graph.set_IP('localhost');
     test_graph.set_port(18085);
-    test_graph.set_ThreadNum(1);
+    test_graph.set_ThreadNum(2);
     test_graph.set_MaxIteration(50);
-    test_graph.set_StaleNum(2);
-    test_graph.set_FilterThreshold(0.00000001);
+    test_graph.set_StaleNum(0);
+    test_graph.set_FilterThreshold(0);
     test_graph.set_CalcFunc(calc_pagerank);
     
 #    a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
