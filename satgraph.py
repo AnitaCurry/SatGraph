@@ -496,14 +496,16 @@ class satgraph():
     def __wait_for_threadslot(self, TaskThreadPool_):
         while True:
             running_num =  self.__check_threadpool(TaskThreadPool_);
-            if  running_num < self.__ControlInfo['MaxIteration']:
+            if  running_num < self.__ThreadNum:
                 break;
             else:
                 sleep(0.01);
                 
     def __sync(self):
         while True:
-            if (self.__ControlInfo['IterationNum'] - self.__ControlInfo['IterationReport'].min()) <= self.__ControlInfo['StaleNum']:
+            if (self.__ControlInfo['IterationNum'] \
+                    - self.__ControlInfo['IterationReport'].min()) \
+                    <= self.__ControlInfo['StaleNum']:
                 break;
             sleep(0.01);
         
