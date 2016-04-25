@@ -307,41 +307,68 @@ class UpdateThread(threading.Thread):
                 socket.recv();
 
 class CalcThread(threading.Thread):
-    __PartitionID = 0;
+#     __PartitionID = 0;
     __GraphInfo = {};
     __Dtype_All = {};
     __ControlInfo = None;
     __DataInfo = None;
+    __PendingTaskQueue = None;
+    __RunningFlag = False;
+    __stop = threading.Event();
+        
+    def stop(self):
+        self.__stop.set();
     
-    def __init__(self, PartitionID, DataInfo, GraphInfo, ControlInfo, Dtype_All):
+    def __init__(self, DataInfo, GraphInfo, ControlInfo, Dtype_All):
         threading.Thread.__init__(self);
-        self.__PartitionID = PartitionID;
+#         self.__PartitionID = PartitionID;
         self.__DataInfo    = DataInfo;
         self.__GraphInfo   = GraphInfo;
         self.__ControlInfo = ControlInfo;
         self.__Dtype_All   = Dtype_All;
+        self.__PendingTaskQueue   = Queue.Queue();
+        __RunningFlag = False
         
+    def put_task(self, PartitionID):
+        self.__PendingTaskQueue.put(PartitionID);
+    
+    def is_free(self):
+        if self.__RunningFlag == False and self.__PendingTaskQueue.empty():
+            return True;
+    
     def run(self):
-        UpdatedVertex = self.__ControlInfo['CalcFunc'](self.__PartitionID, 
-                                                       self.__DataInfo,
-                                                       self.__GraphInfo,
-                                                       self.__Dtype_All);
-
-        start_id = self.__PartitionID * self.__GraphInfo['VertexPerPartition'];
-        end_id   = (self.__PartitionID + 1) * self.__GraphInfo['VertexPerPartition'];
-        UpdatedVertex = UpdatedVertex - self.__DataInfo['VertexData'][start_id:end_id];
-        UpdatedVertex[np.where(abs(UpdatedVertex) <= self.__ControlInfo['FilterThreshold'])] = 0;
-        UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData']);
-        #Update local data
-        self.__DataInfo['VertexData'][start_id:end_id] = self.__DataInfo['VertexData'][start_id:end_id] + UpdatedVertex;
-        
-        Tmp_UpdatedData = np.append(UpdatedVertex, self.__PartitionID);
-        Tmp_UpdatedData = Tmp_UpdatedData.astype(self.__Dtype_All['VertexData']);
-        
-        Str_UpdatedData = Tmp_UpdatedData.tostring();
-        Str_UpdatedData = snappy.compress(Str_UpdatedData);
-        QueueUpdatedVertex.put(Str_UpdatedData);
-#         print QueueUpdatedVertex.qsize();
+        while True:
+            self.__RunningFlag = False;
+            
+            try:
+                PartitionID_ = self.__PendingTaskQueue.get(timeout=0.05);
+            except:
+                if self.__stop.is_set():
+                    break;
+                else:
+                    continue;
+            
+            self.__RunningFlag = True;
+            UpdatedVertex = self.__ControlInfo['CalcFunc'](PartitionID_, 
+                                                           self.__DataInfo,
+                                                           self.__GraphInfo,
+                                                           self.__Dtype_All);
+    
+            start_id = PartitionID_ * self.__GraphInfo['VertexPerPartition'];
+            end_id   = (PartitionID_ + 1) * self.__GraphInfo['VertexPerPartition'];
+            UpdatedVertex = UpdatedVertex - self.__DataInfo['VertexData'][start_id:end_id];
+            UpdatedVertex[np.where(abs(UpdatedVertex) <= self.__ControlInfo['FilterThreshold'])] = 0;
+            UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData']);
+            #Update local data
+            self.__DataInfo['VertexData'][start_id:end_id] = self.__DataInfo['VertexData'][start_id:end_id] + UpdatedVertex;
+            
+            Tmp_UpdatedData = np.append(UpdatedVertex, PartitionID_);
+            Tmp_UpdatedData = Tmp_UpdatedData.astype(self.__Dtype_All['VertexData']);
+            
+            Str_UpdatedData = Tmp_UpdatedData.tostring();
+            Str_UpdatedData = snappy.compress(Str_UpdatedData);
+            QueueUpdatedVertex.put(Str_UpdatedData);
+    #         print QueueUpdatedVertex.qsize();
 
 class satgraph():
 #     __Dtype_VertexData      = np.int32;
@@ -484,22 +511,14 @@ class satgraph():
     @property
     def DataInfo(self):
         return self.__DataInfo;
-    
-    def __check_threadpool(self, threadpool):
-        for i in threadpool:
-            if i.is_alive():
-                pass;
-            else:
-                threadpool.remove(i);
-        return len(threadpool);
+
     
     def __wait_for_threadslot(self, TaskThreadPool_):
         while True:
-            running_num =  self.__check_threadpool(TaskThreadPool_);
-            if  running_num < self.__ThreadNum:
-                break;
-            else:
-                sleep(0.01);
+            sleep(0.01);
+            for i in range(self.__ThreadNum):
+                if TaskThreadPool_[i].is_free():
+                    return i;
                 
     def __sync(self):
         while True:
@@ -561,19 +580,22 @@ class satgraph():
         TaskThreadPool = [];
         TaskTotalNum = 0;
         
+        for i in range(self.__ThreadNum):
+            new_thead = CalcThread(self.__DataInfo, 
+                                   self.__GraphInfo, 
+                                   self.__ControlInfo, 
+                                   self.__Dtype_All); 
+            TaskThreadPool.append(new_thead);
+            new_thead.start();
+        
+        
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy();
         
         while not AllTaskQueue.empty():           
-            self.__wait_for_threadslot(TaskThreadPool);
-            
+            free_threadid = self.__wait_for_threadslot(TaskThreadPool);
             new_partion =  AllTaskQueue.get();
-            new_thead = CalcThread(new_partion, 
-                                   self.__DataInfo, 
-                                   self.__GraphInfo, 
-                                   self.__ControlInfo, 
-                                   self.__Dtype_All); 
-            
+                       
             CurrentIterationNum = TaskTotalNum/len(self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]);
             NewIteration = False;
             if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
@@ -582,15 +604,16 @@ class satgraph():
             TaskTotalNum = TaskTotalNum + 1;
             
             self.__sync();
-            new_thead.start();
-            TaskThreadPool.append(new_thead);
-            
+            TaskThreadPool[free_threadid].put_task(new_partion);
+           
             if NewIteration:
                 if self.__MPIInfo['MPI_Rank'] == 0:
                     print CurrentIterationNum, '->', 10000*LA.norm(self.__DataInfo['VertexData']-Old_Vertex_);
                     Old_Vertex_ = self.__DataInfo['VertexData'].copy();
 #                     print self.__DataInfo['VertexData'];
-                    
+         
+        for i in range(self.__ThreadNum):
+            TaskThreadPool[i].stop();            
         if (self.__MPIInfo['MPI_Rank'] != 0):
             UpdateVertexThread.stop(-1);
         else:
