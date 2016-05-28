@@ -25,8 +25,7 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
   if not os.path.isfile(Str_RawDataPath):
     return -1
   _File_RawData   = open(Str_RawDataPath, 'r')
-  _Dict_Map       = {}
-  #can also be levelDB
+  _Dict_Map       = {} #can also be levelDB
   _Processed_Data = []
   _Int_InitialNum = -1
   while True:
@@ -479,14 +478,12 @@ class satgraph():
     for i in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
       self.__DataInfo['EdgeData'][i] = load_edgedata(i, self.__GraphInfo, self.__Dtype_All)
     self.__DataInfo['VertexOut'] = load_vertexout(self.__GraphInfo, self.__Dtype_All)
-
     #Initial the vertex data
     self.__DataInfo['VertexData'] = intial_vertex(self.__GraphInfo, self.__Dtype_All, Str_InitialVertex)
-
-    #Communication Threads
+    #Communication Thread
     UpdateVertexThread = UpdateThread(self.__IP, self.__Port, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All)
     UpdateVertexThread.start()
-
+    #BroadVertexThread Thread
     BroadVertexThread = BroadThread(self.__MPIInfo, self.__DataInfo, self.__ControlInfo, self.__GraphInfo, self.__Dtype_All)
     BroadVertexThread.start()
 
@@ -557,10 +554,9 @@ if __name__ == '__main__':
   test_graph.set_FilterThreshold(0)
   test_graph.set_CalcFunc(calc_pagerank)
 
-  #    a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
-  #     GraphInfo = \
-  #         graph_to_matrix('./twitter2.txt', './', 81306, 10, Dtype_All);
+  #a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
+  #GraphInfo = graph_to_matrix('./twitter2.txt', './', 81306, 10, Dtype_All);
   #81310, 8131, 10
   test_graph.run('pagerank')
-#     os._exit(0);
-#     print PartitionInfo[MPI_Rank];
+  #os._exit(0);
+  #print PartitionInfo[MPI_Rank];
