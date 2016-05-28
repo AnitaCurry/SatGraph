@@ -23,8 +23,8 @@ QueueUpdatedVertex = Queue.Queue();
 def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
     if not os.path.isfile(Str_RawDataPath):
         return -1;
-    _File_RawData = open(Str_RawDataPath, 'r');
-    _Dict_Map = {};#can also be levelDB
+    _File_RawData   = open(Str_RawDataPath, 'r');
+    _Dict_Map       = {};#can also be levelDB
     _Processed_Data = [];
     _Int_InitialNum = -1;
     while True:
@@ -37,23 +37,23 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
         if len(_Str_Temp) != 2:
             continue;
         try:
-            _Int_i = int(_Str_Temp[0]);
-            _Int_j = int(_Str_Temp[1]);
+            _Int_i        = int(_Str_Temp[0]);
+            _Int_j        = int(_Str_Temp[1]);
             _Int_Mapped_i = 0;
             _Int_Mapped_j = 0;
             if _Int_i in _Dict_Map:
                 _Int_Mapped_i = _Dict_Map[_Int_i];
             else:
-                _Int_InitialNum = _Int_InitialNum + 1;
+                _Int_InitialNum   = _Int_InitialNum + 1;
                 _Dict_Map[_Int_i] = _Int_InitialNum;
-                _Int_Mapped_i = _Int_InitialNum;
+                _Int_Mapped_i     = _Int_InitialNum;
                 
             if _Int_j in _Dict_Map:
                 _Int_Mapped_j = _Dict_Map[_Int_j];
             else:
-                _Int_InitialNum = _Int_InitialNum + 1;
+                _Int_InitialNum   = _Int_InitialNum + 1;
                 _Dict_Map[_Int_j] = _Int_InitialNum;
-                _Int_Mapped_j = _Int_InitialNum;
+                _Int_Mapped_j     = _Int_InitialNum;
             _Processed_Data.append((_Int_Mapped_i, _Int_Mapped_j));
         except:
             print 'Cannot format Data ', _Str_Line;
@@ -69,13 +69,12 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
         return -1;
     
     Int_VertexPerPartition = int(math.ceil(Int_VertexNum*1.0/Int_PartitionNum));
-    Int_NewVertexNum = Int_PartitionNum * Int_VertexPerPartition;
-    #Define the matrix, use lil matrix first
-    _SMat_EdgeData = sparse.lil_matrix((Int_NewVertexNum, Int_NewVertexNum), dtype=Dtype_All[2]);
-    _Array_VertexIn = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1]);
-    _Array_VertexOut = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1]);
-    _File_RawData = open(Str_RawDataPath, 'r');
-    _Str_Line = '';
+    Int_NewVertexNum       = Int_PartitionNum * Int_VertexPerPartition;
+    _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum, Int_NewVertexNum), dtype=Dtype_All[2]);
+    _Array_VertexIn        = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1]);
+    _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1]);
+    _File_RawData          = open(Str_RawDataPath, 'r');
+    _Str_Line              = '';
 
     #Read data from the raw data file
     while True:
@@ -472,7 +471,6 @@ class satgraph():
 
         #Initial the vertex data
         self.__DataInfo['VertexData'] = intial_vertex(self.__GraphInfo, self.__Dtype_All, Str_InitialVertex);
-        
 
         #Communication Threads
         UpdateVertexThread = UpdateThread(self.__IP, self.__Port, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All);
