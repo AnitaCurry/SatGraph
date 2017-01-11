@@ -66,33 +66,42 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
   return len(_Dict_Map), len(_Processed_Data)
 
 
-def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Dtype_All, Str_Seq='\t'):
+def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Dtype_All, Str_Seq=','):
   if not os.path.isfile(Str_RawDataPath):
     return -1
 
   Int_VertexPerPartition = int(math.ceil(Int_VertexNum * 1.0 / Int_PartitionNum))
   Int_NewVertexNum       = Int_PartitionNum * Int_VertexPerPartition
   _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum, Int_NewVertexNum), dtype=Dtype_All[2])
+  print 'initial edge matrix';
   # _Array_VertexIn        = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
   _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
+  print 'initial vertex matrix';
   _File_RawData          = open(Str_RawDataPath, 'r')
   _Str_Line              = ''
+  print Int_NewVertexNum, Int_VertexPerPartition;
 
+  read_edge = 0;
   #Read data from the raw data file
   while True:
+    if read_edge % 100000 == 0:
+      #print read_edge*1.0/101355853, '#', read_edge;
+      print read_edge*1.0/91792261600, '#', read_edge;
+    read_edge = read_edge + 1
+
     _Str_Line = _File_RawData.readline()
     if len(_Str_Line) == 0:
       break
-    if _Str_Line[0] == '#':
-      continue
+    #if _Str_Line[0] == '#':
+    #  continue
     _Str_Temp = _Str_Line.split(Str_Seq)
-    if len(_Str_Temp) != 2:
-      continue
-    try:
-      _Int_i = int(_Str_Temp[0])
-      _Int_j = int(_Str_Temp[1])
-    except:
-      print 'Cannot format Data ', _Str_Line
+    #if len(_Str_Temp) != 2:
+    #  continue
+    #try:
+    _Int_i = int(_Str_Temp[0])
+    _Int_j = int(_Str_Temp[1])
+    #except:
+    #  print 'Cannot format Data ', _Str_Line
     #j is dst, i is src
     _SMat_EdgeData[_Int_j, _Int_i] = 1
     # _Array_VertexIn[_Int_j]        = _Array_VertexIn[_Int_j] + 1
@@ -556,7 +565,8 @@ if __name__ == '__main__':
   # test_graph.set_CalcFunc(calc_pagerank)
 
   #a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
-  GraphInfo = graph_to_matrix('../eu-2005.txt', './', 862664, 2, Dtype_All);
+  #GraphInfo = graph_to_matrix('/data/3/enwiki-2013.txt', './', 4206785, 50, Dtype_All);
+  GraphInfo = graph_to_matrix('/data/3/eu-2015.txt', './', 1070557254, 2000, Dtype_All);
   print GraphInfo;
   #81310, 8131, 10
   # test_graph.run('pagerank')
