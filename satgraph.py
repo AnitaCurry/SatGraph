@@ -186,8 +186,8 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
     _File_RawData.close()
     _SMat_EdgeData = sparse.csr_matrix((data, (row, col)), shape=(Int_NewVertexNum/sub_partition, Int_NewVertexNum), dtype=Dtype_All[2])
     for i in range(Int_PartitionNum/sub_partition):
-      i = i + sp * Int_PartitionNum/sub_partition
-      _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(i) + '.edge', 'w')
+      j = i + sp * Int_PartitionNum/sub_partition
+      _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(j) + '.edge', 'w')
       Partition_SMat_EdgeData = _SMat_EdgeData[i * Int_VertexPerPartition:(i + 1) * Int_VertexPerPartition]
       Partition_Indices       = Partition_SMat_EdgeData.indices
       Partition_Indptr        = Partition_SMat_EdgeData.indptr
