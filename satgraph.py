@@ -91,11 +91,11 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
       _Str_Line = _File_RawData.readline()
       if len(_Str_Line) == 0:
         break
-    #   if _Str_Line[0] == '#':
-    #     continue
-    #   _Str_Temp = _Str_Line.split(Str_Seq)
-    #   if len(_Str_Temp) != 2:
-    #       continue
+      if _Str_Line[0] == '#':
+        continue
+      _Str_Temp = _Str_Line.split(Str_Seq)
+      if len(_Str_Temp) != 2:
+          continue
       try:
         _Int_i = int(_Str_Temp[0])
         _Int_j = int(_Str_Temp[1]) - i * Int_VertexPerPartition
