@@ -17,7 +17,8 @@ from time import sleep
 import snappy
 from Cython.Plex.Regexps import Empty
 from numpy import linalg as LA
-from scipy.sparse import coo_matrix
+# from scipy.sparse import coo_matrix
+import pandas as pd
 
 QueueUpdatedVertex = Queue.Queue()
 
@@ -141,7 +142,7 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
 #   return Str_DestDataPath + '/subdata/', Int_NewVertexNum, Int_PartitionNum, Int_VertexPerPartition
 
 
-def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Dtype_All, Str_Seq=','):
+def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Int_LineNum, Dtype_All, Str_Seq=','):
   if not os.path.isfile(Str_RawDataPath):
     return -1
   if os.path.isfile(Str_DestDataPath + '/subdata'):
@@ -153,61 +154,71 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
   Int_VertexPerPartition = int(math.ceil(Int_VertexNum * 1.0 / Int_PartitionNum))
   Int_NewVertexNum       = Int_PartitionNum * Int_VertexPerPartition
   _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
-  print 'initial vertex matrix';
-  _Str_Line              = ''
-  print Int_NewVertexNum, Int_VertexPerPartition;
+  _Array_VertexIn        = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
 
-  sub_partition = 20;
-  for sp in range(sub_partition):
-    row = [];
-    col = [];
-    data = [];
-    _File_RawData          = open(Str_RawDataPath, 'r')
-    _SMat_EdgeData         = sparse.dok_matrix((Int_NewVertexNum/sub_partition, Int_NewVertexNum), dtype=Dtype_All[2])
-    print 'initial edge matrix';
-    read_edge = 0;
+  read_rows = 0;
+  for par_n in range(Int_PartitionNum):
+    print par_n
+    dst_array = np.array([0])
+    src_array = np.array([0])
+    new_partition_flag = False;
     while True:
-      if read_edge % 100000 == 0:
-        print read_edge*1.0/91792261600, '#', read_edge;
-      read_edge = read_edge + 1
-
-      _Str_Line = _File_RawData.readline()
-      if len(_Str_Line) == 0:
+      print read_rows
+      p_data      = pd.read_csv(Str_RawDataPath, names=['dst', 'src'], nrows=5000000, skiprows=read_rows)
+      t_dst_array = p_data.values[:,0]
+      t_src_array = p_data.values[:,1]
+      if t_dst_array[-1] < (1+par_n)*Int_VertexPerPartition:
+        dst_array = np.append(dst_array, t_dst_array)
+        src_array = np.append(src_array, t_src_array)
+        read_rows = read_rows + len(p_data)
+      elif t_dst_array[0] >= (1+par_n)*Int_VertexPerPartition:
+        new_partition_flag = True
+      else:
+        new_partition_flag = True
+        split_index = np.argmax(t_dst_array >= (1+par_n)*Int_VertexPerPartition)
+        dst_array = np.append(dst_array, t_dst_array[:split_index])
+        src_array = np.append(src_array, t_src_array[:split_index])
+        read_rows = read_rows + split_index
+      if new_partition_flag == True or read_rows == Int_LineNum:
         break
-      _Str_Temp = _Str_Line.split(Str_Seq)
-      _Int_i = int(_Str_Temp[0])
-      _Int_j = int(_Str_Temp[1]) - sp * Int_NewVertexNum/sub_partition
-      if _Int_j >= 0 and _Int_j < Int_NewVertexNum/sub_partition:
-        # row.append(_Int_j);
-        # col.append(_Int_i);
-        # data.append(True);
-        _SMat_EdgeData[_Int_j, _Int_i] = 1
-        _Array_VertexOut[_Int_i]       = _Array_VertexOut[_Int_i] + 1
-    _File_RawData.close()
-    _SMat_EdgeData = _SMat_EdgeData.tocsr()
-    # _SMat_EdgeData = sparse.csr_matrix((data, (row, col)), shape=(Int_NewVertexNum/sub_partition, Int_NewVertexNum), dtype=Dtype_All[2])
-    for i in range(Int_PartitionNum/sub_partition):
-      j = i + sp * Int_PartitionNum/sub_partition
-      _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(j) + '.edge', 'w')
-      Partition_SMat_EdgeData = _SMat_EdgeData[i * Int_VertexPerPartition:(i + 1) * Int_VertexPerPartition]
-      Partition_Indices       = Partition_SMat_EdgeData.indices
-      Partition_Indptr        = Partition_SMat_EdgeData.indptr
-      Len_Indices             = len(Partition_Indices)
-      Len_Indptr              = len(Partition_Indptr)
-      PartitionData           = np.append(len(Partition_SMat_EdgeData.data), Len_Indices)
-      PartitionData           = np.append(PartitionData, Len_Indptr)
-      PartitionData           = np.append(PartitionData, Partition_Indices)
-      PartitionData           = np.append(PartitionData, Partition_Indptr)
-      PartitionData           = PartitionData.astype(Dtype_All[1])
-      PartitionData.tofile(_File_PartitionData)
-      _File_PartitionData.close()
+    data = np.ones(len(dst_array), dtype=np.bool)
+    dst_array = dst_array - par_n * Int_VertexPerPartition
+    print par_n, len(data)-1, len(dst_array)-1, len(src_array)-1
+    _SMat_EdgeData = sparse.csr_matrix((data[1:], (dst_array[1:], src_array[1:])), shape=(Int_VertexPerPartition, Int_NewVertexNum), dtype=Dtype_All[2])
 
-  _Array_VertexOut[np.where(_Array_VertexOut == 0)] = 1
+    unique, counts = np.unique(src_array[1:], return_counts=True)
+    vertexout = dict(zip(unique, counts))
+    for v in vertexout:
+      _Array_VertexOut[v] = vertexout[v] + _Array_VertexOut[v];
+
+    unique, counts = np.unique(dst_array[1:], return_counts=True)
+    vertexin = dict(zip(unique, counts))
+    for v in vertexin:
+      _Array_VertexIn[v] = vertexin[v] + _Array_VertexIn[v];
+
+    _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(par_n) + '.edge', 'w')
+    # Partition_SMat_EdgeData = _SMat_EdgeData[par_n * Int_VertexPerPartition : (par_n + 1) * Int_VertexPerPartition]
+    Partition_Indices       = _SMat_EdgeData.indices
+    Partition_Indptr        = _SMat_EdgeData.indptr
+    Len_Indices             = len(Partition_Indices)
+    Len_Indptr              = len(Partition_Indptr)
+    PartitionData           = np.append(len(_SMat_EdgeData.data), Len_Indices)
+    PartitionData           = np.append(PartitionData, Len_Indptr)
+    PartitionData           = np.append(PartitionData, Partition_Indices)
+    PartitionData           = np.append(PartitionData, Partition_Indptr)
+    PartitionData           = PartitionData.astype(Dtype_All[1])
+    PartitionData.tofile(_File_PartitionData)
+    _File_PartitionData.close()
+
+  # _Array_VertexOut[np.where(_Array_VertexOut == 0)] = 1
+  # _Array_VertexIn[np.where(_Array_VertexIn == 0)] = 1
   _File_PartitionData = open(Str_DestDataPath + '/subdata/' + 'vertexout', 'w')
   _Array_VertexOut.tofile(_File_PartitionData)
   _File_PartitionData.close()
+  _File_PartitionData = open(Str_DestDataPath + '/subdata/' + 'vertexin', 'w')
+  _Array_VertexIn.tofile(_File_PartitionData)
+  _File_PartitionData.close()
   return Str_DestDataPath + '/subdata/', Int_NewVertexNum, Int_PartitionNum, Int_VertexPerPartition
-
 
 def intial_vertex(GraphInfo, Dtype_All, Str_Policy='ones'):
   if Str_Policy == 'ones':
@@ -633,8 +644,8 @@ if __name__ == '__main__':
   # test_graph.set_CalcFunc(calc_pagerank)
 
   #a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
-  #GraphInfo = graph_to_matrix('/data/3/enwiki-2013.txt', './', 4206785, 50, Dtype_All);
-  GraphInfo = graph_to_matrix('/data/3/eu-2015.txt', './', 1070557254, 2000, Dtype_All);
+  GraphInfo = graph_to_matrix('../WebGraph/dataset/eu-2005-t.txt', './', 862664, 2, 19235140, Dtype_All);
+  # GraphInfo = graph_to_matrix('/data/3/eu-2015.txt', './', 1070557254, 2000, Dtype_All);
   print GraphInfo;
   #81310, 8131, 10
   # test_graph.run('pagerank')
