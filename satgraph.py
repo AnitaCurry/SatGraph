@@ -17,6 +17,7 @@ from time import sleep
 import snappy
 from Cython.Plex.Regexps import Empty
 from numpy import linalg as LA
+from scipy.sparse import coo_matrix
 
 QueueUpdatedVertex = Queue.Queue()
 
@@ -156,10 +157,13 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
   _Str_Line              = ''
   print Int_NewVertexNum, Int_VertexPerPartition;
 
-  sub_partition = 4;
+  sub_partition = 20;
   for sp in range(sub_partition):
+    row = [];
+    col = [];
+    data = [];
     _File_RawData          = open(Str_RawDataPath, 'r')
-    _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum/sub_partition, Int_NewVertexNum), dtype=Dtype_All[2])
+    # _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum/sub_partition, Int_NewVertexNum), dtype=Dtype_All[2])
     print 'initial edge matrix';
     read_edge = 0;
     while True:
@@ -174,10 +178,13 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
       _Int_i = int(_Str_Temp[0])
       _Int_j = int(_Str_Temp[1]) - sp * Int_NewVertexNum/sub_partition
       if _Int_j >= 0 and _Int_j < Int_NewVertexNum/sub_partition:
-        _SMat_EdgeData[_Int_j, _Int_i] = 1
+        row.append(_Int_j);
+        col.append(_Int_i);
+        data.append(True);
+        # _SMat_EdgeData[_Int_j, _Int_i] = 1
         _Array_VertexOut[_Int_i]       = _Array_VertexOut[_Int_i] + 1
     _File_RawData.close()
-    _SMat_EdgeData = _SMat_EdgeData.tocsr()
+    _SMat_EdgeData = sparse.csr_matrix((data, (row, col)), shape=(Int_NewVertexNum/sub_partition, Int_NewVertexNum), dtype=Dtype_All[2])
     for i in range(Int_PartitionNum/sub_partition):
       i = i + sp * Int_PartitionNum/sub_partition
       _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(i) + '.edge', 'w')
