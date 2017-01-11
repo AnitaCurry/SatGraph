@@ -65,6 +65,80 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
   _File_DestData.close()
   return len(_Dict_Map), len(_Processed_Data)
 
+# def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Dtype_All, Str_Seq=','):
+#   if not os.path.isfile(Str_RawDataPath):
+#     return -1
+#
+#   Int_VertexPerPartition = int(math.ceil(Int_VertexNum * 1.0 / Int_PartitionNum))
+#   Int_NewVertexNum       = Int_PartitionNum * Int_VertexPerPartition
+#   _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum, Int_NewVertexNum), dtype=Dtype_All[2])
+#   print 'initial edge matrix';
+#   # _Array_VertexIn        = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
+#   _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
+#   print 'initial vertex matrix';
+#   _File_RawData          = open(Str_RawDataPath, 'r')
+#   _Str_Line              = ''
+#   print Int_NewVertexNum, Int_VertexPerPartition;
+#
+#   read_edge = 0;
+#   #Read data from the raw data file
+#   while True:
+#     if read_edge % 100000 == 0:
+#       #print read_edge*1.0/101355853, '#', read_edge;
+#       print read_edge*1.0/91792261600, '#', read_edge;
+#     read_edge = read_edge + 1
+#
+#     _Str_Line = _File_RawData.readline()
+#     if len(_Str_Line) == 0:
+#       break
+#     #if _Str_Line[0] == '#':
+#     #  continue
+#     _Str_Temp = _Str_Line.split(Str_Seq)
+#     #if len(_Str_Temp) != 2:
+#     #  continue
+#     #try:
+#     _Int_i = int(_Str_Temp[0])
+#     _Int_j = int(_Str_Temp[1])
+#     #except:
+#     #  print 'Cannot format Data ', _Str_Line
+#     #j is dst, i is src
+#     _SMat_EdgeData[_Int_j, _Int_i] = 1
+#     # _Array_VertexIn[_Int_j]        = _Array_VertexIn[_Int_j] + 1
+#     _Array_VertexOut[_Int_i]       = _Array_VertexOut[_Int_i] + 1
+#   _File_RawData.close()
+#
+#   _Array_VertexOut[np.where(_Array_VertexOut == 0)] = 1
+#   # _Array_VertexIn[np.where(_Array_VertexIn == 0)] = 1
+#   _SMat_EdgeData = _SMat_EdgeData.tocsr()
+#   if os.path.isfile(Str_DestDataPath + '/subdata'):
+#     os.remove(Str_DestDataPath + '/subdata')
+#   if os.path.isdir(Str_DestDataPath + '/subdata'):
+#     shutil.rmtree(Str_DestDataPath + '/subdata')
+#   os.makedirs(Str_DestDataPath + '/subdata')
+#
+#   for i in range(Int_PartitionNum):
+#     _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(i) + '.edge', 'w')
+#     Partition_SMat_EdgeData = _SMat_EdgeData[i * Int_VertexPerPartition:(i + 1) * Int_VertexPerPartition]
+#     Partition_Indices       = Partition_SMat_EdgeData.indices
+#     Partition_Indptr        = Partition_SMat_EdgeData.indptr
+#     Len_Indices             = len(Partition_Indices)
+#     Len_Indptr              = len(Partition_Indptr)
+#     PartitionData           = np.append(len(Partition_SMat_EdgeData.data), Len_Indices)
+#     PartitionData           = np.append(PartitionData, Len_Indptr)
+#     PartitionData           = np.append(PartitionData, Partition_Indices)
+#     PartitionData           = np.append(PartitionData, Partition_Indptr)
+#     PartitionData           = PartitionData.astype(Dtype_All[1])
+#     PartitionData.tofile(_File_PartitionData)
+#     _File_PartitionData.close()
+#
+#   _File_PartitionData = open(Str_DestDataPath + '/subdata/' + 'vertexout', 'w')
+#   _Array_VertexOut.tofile(_File_PartitionData)
+#   _File_PartitionData.close()
+#   # _File_PartitionData = open(Str_DestDataPath + '/subdata/' + 'vertexin', 'w')
+#   # _Array_VertexIn.tofile(_File_PartitionData)
+#   # _File_PartitionData.close()
+#   return Str_DestDataPath + '/subdata/', Int_NewVertexNum, Int_PartitionNum, Int_VertexPerPartition
+
 
 def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Dtype_All, Str_Seq=','):
   if not os.path.isfile(Str_RawDataPath):
@@ -72,72 +146,60 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
 
   Int_VertexPerPartition = int(math.ceil(Int_VertexNum * 1.0 / Int_PartitionNum))
   Int_NewVertexNum       = Int_PartitionNum * Int_VertexPerPartition
-  _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum, Int_NewVertexNum), dtype=Dtype_All[2])
   print 'initial edge matrix';
-  # _Array_VertexIn        = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
   _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
   print 'initial vertex matrix';
-  _File_RawData          = open(Str_RawDataPath, 'r')
   _Str_Line              = ''
   print Int_NewVertexNum, Int_VertexPerPartition;
 
-  read_edge = 0;
-  #Read data from the raw data file
-  while True:
-    if read_edge % 100000 == 0:
-      #print read_edge*1.0/101355853, '#', read_edge;
-      print read_edge*1.0/91792261600, '#', read_edge;
-    read_edge = read_edge + 1
+  sub_partition = 4;
+  for sp in range(sub_partition):
+    _File_RawData          = open(Str_RawDataPath, 'r')
+    _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum/2, Int_NewVertexNum), dtype=Dtype_All[2])
+    read_edge = 0;
+    while True:
+      if read_edge % 100000 == 0:
+        print read_edge*1.0/91792261600, '#', read_edge;
+      read_edge = read_edge + 1
 
-    _Str_Line = _File_RawData.readline()
-    if len(_Str_Line) == 0:
-      break
-    #if _Str_Line[0] == '#':
-    #  continue
-    _Str_Temp = _Str_Line.split(Str_Seq)
-    #if len(_Str_Temp) != 2:
-    #  continue
-    #try:
-    _Int_i = int(_Str_Temp[0])
-    _Int_j = int(_Str_Temp[1])
-    #except:
-    #  print 'Cannot format Data ', _Str_Line
-    #j is dst, i is src
-    _SMat_EdgeData[_Int_j, _Int_i] = 1
-    # _Array_VertexIn[_Int_j]        = _Array_VertexIn[_Int_j] + 1
-    _Array_VertexOut[_Int_i]       = _Array_VertexOut[_Int_i] + 1
-  _File_RawData.close()
+      _Str_Line = _File_RawData.readline()
+      if len(_Str_Line) == 0:
+        break
+      _Str_Temp = _Str_Line.split(Str_Seq)
+      _Int_i = int(_Str_Temp[0])
+      _Int_j = int(_Str_Temp[1]) - sp * Int_NewVertexNum/sub_partition
+      if _Int_j >= 0 and _Int_j < Int_NewVertexNum/sub_partition:
+        _SMat_EdgeData[_Int_j, _Int_i] = 1
+        _Array_VertexOut[_Int_i]       = _Array_VertexOut[_Int_i] + 1
+    _File_RawData.close()
+
+    _SMat_EdgeData = _SMat_EdgeData.tocsr()
+    if os.path.isfile(Str_DestDataPath + '/subdata'):
+      os.remove(Str_DestDataPath + '/subdata')
+    if os.path.isdir(Str_DestDataPath + '/subdata'):
+      shutil.rmtree(Str_DestDataPath + '/subdata')
+    os.makedirs(Str_DestDataPath + '/subdata')
+
+    for i in range(Int_PartitionNum/sub_partition):
+      i = i + sp * Int_PartitionNum/sub_partition
+      _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(i) + '.edge', 'w')
+      Partition_SMat_EdgeData = _SMat_EdgeData[i * Int_VertexPerPartition:(i + 1) * Int_VertexPerPartition]
+      Partition_Indices       = Partition_SMat_EdgeData.indices
+      Partition_Indptr        = Partition_SMat_EdgeData.indptr
+      Len_Indices             = len(Partition_Indices)
+      Len_Indptr              = len(Partition_Indptr)
+      PartitionData           = np.append(len(Partition_SMat_EdgeData.data), Len_Indices)
+      PartitionData           = np.append(PartitionData, Len_Indptr)
+      PartitionData           = np.append(PartitionData, Partition_Indices)
+      PartitionData           = np.append(PartitionData, Partition_Indptr)
+      PartitionData           = PartitionData.astype(Dtype_All[1])
+      PartitionData.tofile(_File_PartitionData)
+      _File_PartitionData.close()
 
   _Array_VertexOut[np.where(_Array_VertexOut == 0)] = 1
-  # _Array_VertexIn[np.where(_Array_VertexIn == 0)] = 1
-  _SMat_EdgeData = _SMat_EdgeData.tocsr()
-  if os.path.isfile(Str_DestDataPath + '/subdata'):
-    os.remove(Str_DestDataPath + '/subdata')
-  if os.path.isdir(Str_DestDataPath + '/subdata'):
-    shutil.rmtree(Str_DestDataPath + '/subdata')
-  os.makedirs(Str_DestDataPath + '/subdata')
-
-  for i in range(Int_PartitionNum):
-    _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(i) + '.edge', 'w')
-    Partition_SMat_EdgeData = _SMat_EdgeData[i * Int_VertexPerPartition:(i + 1) * Int_VertexPerPartition]
-    Partition_Indices       = Partition_SMat_EdgeData.indices
-    Partition_Indptr        = Partition_SMat_EdgeData.indptr
-    Len_Indices             = len(Partition_Indices)
-    Len_Indptr              = len(Partition_Indptr)
-    PartitionData           = np.append(len(Partition_SMat_EdgeData.data), Len_Indices)
-    PartitionData           = np.append(PartitionData, Len_Indptr)
-    PartitionData           = np.append(PartitionData, Partition_Indices)
-    PartitionData           = np.append(PartitionData, Partition_Indptr)
-    PartitionData           = PartitionData.astype(Dtype_All[1])
-    PartitionData.tofile(_File_PartitionData)
-    _File_PartitionData.close()
-
   _File_PartitionData = open(Str_DestDataPath + '/subdata/' + 'vertexout', 'w')
   _Array_VertexOut.tofile(_File_PartitionData)
   _File_PartitionData.close()
-  # _File_PartitionData = open(Str_DestDataPath + '/subdata/' + 'vertexin', 'w')
-  # _Array_VertexIn.tofile(_File_PartitionData)
-  # _File_PartitionData.close()
   return Str_DestDataPath + '/subdata/', Int_NewVertexNum, Int_PartitionNum, Int_VertexPerPartition
 
 
