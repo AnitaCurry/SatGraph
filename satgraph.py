@@ -143,10 +143,14 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
 def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Dtype_All, Str_Seq=','):
   if not os.path.isfile(Str_RawDataPath):
     return -1
+  if os.path.isfile(Str_DestDataPath + '/subdata'):
+    os.remove(Str_DestDataPath + '/subdata')
+  if os.path.isdir(Str_DestDataPath + '/subdata'):
+    shutil.rmtree(Str_DestDataPath + '/subdata')
+  os.makedirs(Str_DestDataPath + '/subdata')
 
   Int_VertexPerPartition = int(math.ceil(Int_VertexNum * 1.0 / Int_PartitionNum))
   Int_NewVertexNum       = Int_PartitionNum * Int_VertexPerPartition
-  print 'initial edge matrix';
   _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
   print 'initial vertex matrix';
   _Str_Line              = ''
@@ -155,10 +159,11 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
   sub_partition = 4;
   for sp in range(sub_partition):
     _File_RawData          = open(Str_RawDataPath, 'r')
-    _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum/2, Int_NewVertexNum), dtype=Dtype_All[2])
+    _SMat_EdgeData         = sparse.lil_matrix((Int_NewVertexNum/sub_partition, Int_NewVertexNum), dtype=Dtype_All[2])
+    print 'initial edge matrix';
     read_edge = 0;
     while True:
-      if read_edge % 100000 == 0:
+      if read_edge % 10000 == 0:
         print read_edge*1.0/91792261600, '#', read_edge;
       read_edge = read_edge + 1
 
@@ -172,14 +177,7 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
         _SMat_EdgeData[_Int_j, _Int_i] = 1
         _Array_VertexOut[_Int_i]       = _Array_VertexOut[_Int_i] + 1
     _File_RawData.close()
-
     _SMat_EdgeData = _SMat_EdgeData.tocsr()
-    if os.path.isfile(Str_DestDataPath + '/subdata'):
-      os.remove(Str_DestDataPath + '/subdata')
-    if os.path.isdir(Str_DestDataPath + '/subdata'):
-      shutil.rmtree(Str_DestDataPath + '/subdata')
-    os.makedirs(Str_DestDataPath + '/subdata')
-
     for i in range(Int_PartitionNum/sub_partition):
       i = i + sp * Int_PartitionNum/sub_partition
       _File_PartitionData     = open(Str_DestDataPath + '/subdata/' + str(i) + '.edge', 'w')
