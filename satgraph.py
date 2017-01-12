@@ -142,9 +142,9 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
 #   return Str_DestDataPath + '/subdata/', Int_NewVertexNum, Int_PartitionNum, Int_VertexPerPartition
 
 
-def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Int_LineNum, Dtype_All, Str_Seq=','):
-  if not os.path.isfile(Str_RawDataPath):
-    return -1
+def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Sub_Num, Dtype_All, Str_Seq=','):
+  # if not os.path.isfile(Str_RawDataPath):
+  #   return -1
   if os.path.isfile(Str_DestDataPath + '/subdata'):
     os.remove(Str_DestDataPath + '/subdata')
   if os.path.isdir(Str_DestDataPath + '/subdata'):
@@ -156,30 +156,34 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
   _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
   _Array_VertexIn        = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
 
-  read_rows = 0;
+  read_id = 0;
+  # read_rows = 0;
+
   for par_n in range(Int_PartitionNum):
-    print par_n
     dst_array = np.array([0])
     src_array = np.array([0])
     new_partition_flag = False;
     while True:
-      print read_rows
-      p_data      = pd.read_csv(Str_RawDataPath, names=['dst', 'src'], nrows=5000000, skiprows=read_rows)
+      print 'read ', read_id, 'partition ', par_n;
+      p_data      = pd.read_csv(Str_RawDataPath+'-'+str(read_id).zfill(5), names=['dst', 'src'])
       t_dst_array = p_data.values[:,0]
       t_src_array = p_data.values[:,1]
       if t_dst_array[-1] < (1+par_n)*Int_VertexPerPartition:
-        dst_array = np.append(dst_array, t_dst_array)
-        src_array = np.append(src_array, t_src_array)
-        read_rows = read_rows + len(p_data)
+        split_index = np.argmax(t_dst_array >= (par_n)*Int_VertexPerPartition)
+        dst_array = np.append(dst_array, t_dst_array[split_index:])
+        src_array = np.append(src_array, t_src_array[split_index:])
+        read_id = read_id + 1
+        print split_index, t_dst_array[split_index], t_src_array[split_index], (par_n)*Int_VertexPerPartition
       elif t_dst_array[0] >= (1+par_n)*Int_VertexPerPartition:
         new_partition_flag = True
       else:
         new_partition_flag = True
-        split_index = np.argmax(t_dst_array >= (1+par_n)*Int_VertexPerPartition)
-        dst_array = np.append(dst_array, t_dst_array[:split_index])
-        src_array = np.append(src_array, t_src_array[:split_index])
-        read_rows = read_rows + split_index
-      if new_partition_flag == True or read_rows == Int_LineNum:
+        split_index_1  = np.argmax(t_dst_array >= (par_n)*Int_VertexPerPartition)
+        split_index_2 = np.argmax(t_dst_array >= (1+par_n)*Int_VertexPerPartition)
+        dst_array = np.append(dst_array, t_dst_array[split_index_1:split_index_2])
+        src_array = np.append(src_array, t_src_array[split_index_1:split_index_2])
+        read_id = read_id
+      if new_partition_flag == True or read_id == Sub_Num:
         break
     data = np.ones(len(dst_array), dtype=np.bool)
     dst_array = dst_array - par_n * Int_VertexPerPartition
@@ -645,7 +649,7 @@ if __name__ == '__main__':
   # test_graph.set_CalcFunc(calc_pagerank)
 
   #a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
-  GraphInfo = graph_to_matrix('../WebGraph/dataset/eu-2005-t.txt', './', 862664, 4, 19235140, Dtype_All);
+  GraphInfo = graph_to_matrix('/data/4/eu-2015-t', './', 1070557254, 4000, 1, Dtype_All);
   # GraphInfo = graph_to_matrix('/data/3/eu-2015.txt', './', 1070557254, 2000, Dtype_All);
   print GraphInfo;
   #81310, 8131, 10
