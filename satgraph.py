@@ -212,6 +212,7 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
 
   # _Array_VertexOut[np.where(_Array_VertexOut == 0)] = 1
   # _Array_VertexIn[np.where(_Array_VertexIn == 0)] = 1
+
   _File_PartitionData = open(Str_DestDataPath + '/subdata/' + 'vertexout', 'w')
   _Array_VertexOut.tofile(_File_PartitionData)
   _File_PartitionData.close()
@@ -644,7 +645,7 @@ if __name__ == '__main__':
   # test_graph.set_CalcFunc(calc_pagerank)
 
   #a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
-  GraphInfo = graph_to_matrix('../WebGraph/dataset/eu-2005-t.txt', './', 862664, 2, 19235140, Dtype_All);
+  GraphInfo = graph_to_matrix('../WebGraph/dataset/eu-2005-t.txt', './', 862664, 4, 19235140, Dtype_All);
   # GraphInfo = graph_to_matrix('/data/3/eu-2015.txt', './', 1070557254, 2000, Dtype_All);
   print GraphInfo;
   #81310, 8131, 10
