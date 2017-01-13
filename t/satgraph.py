@@ -145,17 +145,16 @@ def preprocess_graph(Str_RawDataPath, Str_DestDataPath, Str_Seq='\t'):
 def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_PartitionNum, Dtype_All, Str_Seq=','):
   # if not os.path.isfile(Str_RawDataPath):
   #   return -1
-  if os.path.isfile(Str_DestDataPath + '/subdata'):
-    os.remove(Str_DestDataPath + '/subdata')
-  if os.path.isdir(Str_DestDataPath + '/subdata'):
-    shutil.rmtree(Str_DestDataPath + '/subdata')
-  os.makedirs(Str_DestDataPath + '/subdata')
+  # if os.path.isfile(Str_DestDataPath + '/subdata'):
+  #   os.remove(Str_DestDataPath + '/subdata')
+  # if os.path.isdir(Str_DestDataPath + '/subdata'):
+  #   shutil.rmtree(Str_DestDataPath + '/subdata')
+  # os.makedirs(Str_DestDataPath + '/subdata')
 
   Int_VertexPerPartition = int(math.ceil(Int_VertexNum * 1.0 / Int_PartitionNum))
   Int_NewVertexNum       = Int_PartitionNum * Int_VertexPerPartition
   _Array_VertexOut       = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
   _Array_VertexIn        = np.zeros(Int_NewVertexNum, dtype=Dtype_All[1])
-
 
   # read_rows = 0;
   ######
@@ -167,7 +166,7 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
   ######
   read_id = 0;
   read_id_stop = 0;
-  g_info = np.fromfile(Str_DestDataPath, dtype=np.int64)
+  g_info = np.fromfile(Str_RawDataPath, dtype=np.int64)
   read_id = np.argmax(g_info>=g_id*g_num*Int_VertexPerPartition)-1;
   read_id_stop = np.argmax(g_info>=(g_id+1)*g_num*Int_VertexPerPartition)-1
 
@@ -175,6 +174,8 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
     read_id = 0
   if read_id_stop < 0:
     read_id_stop = len(g_info)
+
+  print 'read id from ', read_id, ' to ', read_id_stop;
 
   for par_n in range(g_id*g_num, (1+g_id)*g_num):
     dst_array = np.array([0])
