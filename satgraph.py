@@ -173,7 +173,6 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
         dst_array = np.append(dst_array, t_dst_array[split_index:])
         src_array = np.append(src_array, t_src_array[split_index:])
         read_id = read_id + 1
-        print split_index, t_dst_array[split_index], t_src_array[split_index], (par_n)*Int_VertexPerPartition
       elif t_dst_array[0] >= (1+par_n)*Int_VertexPerPartition:
         new_partition_flag = True
       else:
@@ -187,7 +186,6 @@ def graph_to_matrix(Str_RawDataPath, Str_DestDataPath, Int_VertexNum, Int_Partit
         break
     data = np.ones(len(dst_array), dtype=np.bool)
     dst_array = dst_array - par_n * Int_VertexPerPartition
-    print par_n, len(data)-1, len(dst_array)-1, len(src_array)-1
     _SMat_EdgeData = sparse.csr_matrix((data[1:], (dst_array[1:], src_array[1:])), shape=(Int_VertexPerPartition, Int_NewVertexNum), dtype=Dtype_All[2])
 
     unique, counts = np.unique(src_array[1:], return_counts=True)
@@ -649,7 +647,8 @@ if __name__ == '__main__':
   # test_graph.set_CalcFunc(calc_pagerank)
 
   #a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
-  GraphInfo = graph_to_matrix('/data/4/eu-2015-t', './', 1070557254, 4000, 1, Dtype_All);
+  GraphInfo = graph_to_matrix('/data/4/eu-2015-t', './', 1070557254, 4000, 9179, Dtype_All);
+  #GraphInfo = graph_to_matrix('/data/4/eu-2015-t', './', 1070557254, 4000, 1, Dtype_All);
   # GraphInfo = graph_to_matrix('/data/3/eu-2015.txt', './', 1070557254, 2000, Dtype_All);
   print GraphInfo;
   #81310, 8131, 10
