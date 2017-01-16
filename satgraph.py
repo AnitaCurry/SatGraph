@@ -594,6 +594,7 @@ class satgraph():
       Old_Vertex_ = self.__DataInfo['VertexData'].copy()
 
     while not AllTaskQueue.empty():
+      print "###";
       free_threadid = self.__wait_for_threadslot(TaskThreadPool)
       new_partion = AllTaskQueue.get()
       CurrentIterationNum = TaskTotalNum / len(self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']])
@@ -629,29 +630,23 @@ if __name__ == '__main__':
   Dtype_EdgeData       = np.bool
   Dtype_All            = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
-  # DataPath             = './subdata/'
-  # VertexNum            = 81310
-  # PartitionNum         = 10
-  # VertexPerPartition   = 8131
-  # GraphInfo            = (DataPath, VertexNum, PartitionNum, VertexPerPartition)
-  # test_graph           = satgraph()
+  DataPath             = '/home/mapred/GraphData/wiki/subdata/'
+  VertexNum            = 4206800
+  PartitionNum         = 20
+  VertexPerPartition   = 210340
+  GraphInfo            = (DataPath, VertexNum, PartitionNum, VertexPerPartition)
+  test_graph           = satgraph()
 
-  # test_graph.set_Dtype_All(Dtype_All)
-  # test_graph.set_GraphInfo(GraphInfo)
-  # test_graph.set_IP('localhost')
-  # test_graph.set_port(18085)
-  # test_graph.set_ThreadNum(2)
-  # test_graph.set_MaxIteration(50)
-  # test_graph.set_StaleNum(0)
-  # test_graph.set_FilterThreshold(0)
-  # test_graph.set_CalcFunc(calc_pagerank)
+  test_graph.set_Dtype_All(Dtype_All)
+  test_graph.set_GraphInfo(GraphInfo)
+  test_graph.set_IP('localhost')
+  test_graph.set_port(18086)
+  test_graph.set_ThreadNum(1)
+  test_graph.set_MaxIteration(50)
+  test_graph.set_StaleNum(2)
+  test_graph.set_FilterThreshold(0)
+  test_graph.set_CalcFunc(calc_pagerank)
 
-  #a = preprocess_graph('./twitter.txt', './twitter2.txt', ' ');
-  GraphInfo = graph_to_matrix('/data/4/eu-2015-t', './', 1070557254, 4000, 9179, Dtype_All);
-  #GraphInfo = graph_to_matrix('/data/4/eu-2015-t', './', 1070557254, 4000, 1, Dtype_All);
-  # GraphInfo = graph_to_matrix('/data/3/eu-2015.txt', './', 1070557254, 2000, Dtype_All);
-  print GraphInfo;
-  #81310, 8131, 10
-  # test_graph.run('pagerank')
-  #os._exit(0);
-  #print PartitionInfo[MPI_Rank];
+  test_graph.run('pagerank')
+  os._exit(0);
+  print PartitionInfo[MPI_Rank];
