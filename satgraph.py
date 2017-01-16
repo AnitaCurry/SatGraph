@@ -152,7 +152,7 @@ class UpdateThread(threading.Thread):
         self.__stop = threading.Event()
 
     def run(self):
-        if self.__MPIInfo['MPI_Rank'] == 0:
+        if MPI.Get_processor_name() == self.__IP:
             context = zmq.Context()
             socket = context.socket(zmq.REP)
             print(self.__IP, self.__Port)
@@ -466,7 +466,7 @@ if __name__ == '__main__':
 
     test_graph.set_Dtype_All(Dtype_All)
     test_graph.set_GraphInfo(GraphInfo)
-    test_graph.set_IP('localhost')
+    test_graph.set_IP('BDP-10')
     test_graph.set_port(18086)
     test_graph.set_ThreadNum(1)
     test_graph.set_MaxIteration(50)
