@@ -381,7 +381,7 @@ class satgraph():
             else:
                 self.__ControlInfo['PartitionInfo'][i] = range(
                     i * PartitionPerNode_, (i + 1) * PartitionPerNode_)
-
+        print self.__ControlInfo['PartitionInfo']
         # load data to cache
         for i in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
             self.__DataInfo['EdgeData'][i] = load_edgedata(
@@ -458,8 +458,8 @@ if __name__ == '__main__':
     DataPath = '/home/mapred/GraphData/wiki/subdata/'
     VertexNum = 4206800
     PartitionNum = 20
-    VertexPerPartition = 210340
-    GraphInfo = (DataPath, VertexNum, PartitionNum, VertexPerPartition)
+    # VertexPerPartition = 210340
+    GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum/PartitionNum)
     test_graph = satgraph()
 
     test_graph.set_Dtype_All(Dtype_All)
