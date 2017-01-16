@@ -66,7 +66,10 @@ def load_vertexout(GraphInfo, Dtype_All):
 
 
 def calc_pagerank(PartitionID, DataInfo, GraphInfo, Dtype_All):
-    UpdatedVertex = DataInfo['EdgeData'][PartitionID].dot(
+
+    GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
+
+    UpdatedVertex = GraphMatrix.dot(
         DataInfo['VertexData'] / DataInfo['VertexOut']) * 0.85 + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex
@@ -383,9 +386,9 @@ class satgraph():
                     i * PartitionPerNode_, (i + 1) * PartitionPerNode_)
         print self.__ControlInfo['PartitionInfo']
         # load data to cache
-        for i in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
-            self.__DataInfo['EdgeData'][i] = load_edgedata(
-                i, self.__GraphInfo, self.__Dtype_All)
+        # for i in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
+        #     self.__DataInfo['EdgeData'][i] = load_edgedata(
+        #         i, self.__GraphInfo, self.__Dtype_All)
         self.__DataInfo['VertexOut'] = load_vertexout(
             self.__GraphInfo, self.__Dtype_All)
         # Initial the vertex data
@@ -417,7 +420,6 @@ class satgraph():
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
 
         while not AllTaskQueue.empty():
-            print "###"
             free_threadid = self.__wait_for_threadslot(TaskThreadPool)
             new_partion = AllTaskQueue.get()
             CurrentIterationNum = TaskTotalNum / \
