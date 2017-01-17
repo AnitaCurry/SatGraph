@@ -124,7 +124,7 @@ class UpdateThread(threading.Thread):
     __MPIInfo = {}
     __GraphInfo = {}
     __IP = '127.0.0.1'
-    __Port = 17070
+    __UpdatePort = 17070
     __Dtype_All = {}
     __stop = None
 
@@ -133,7 +133,7 @@ class UpdateThread(threading.Thread):
             self.__stop.set()
             context_ = zmq.Context()
             socket_ = context_.socket(zmq.REQ)
-            socket_.connect("tcp://%s:%s" % (self.__IP, self.__Port))
+            socket_.connect("tcp://%s:%s" % (self.__IP, self.__UpdatePort))
             socket_.send("exit")
             socket_.recv()
         else:
@@ -143,7 +143,7 @@ class UpdateThread(threading.Thread):
     def __init__(self, IP, Port, MPIInfo, GraphInfo, Dtype_All):
         threading.Thread.__init__(self)
         self.__IP = IP
-        self.__Port = Port
+        self.__UpdatePort = Port
         self.__MPIInfo = MPIInfo
         self.__GraphInfo = GraphInfo
         self.__Dtype_All = Dtype_All
@@ -153,8 +153,8 @@ class UpdateThread(threading.Thread):
         if self.__MPIInfo['MPI_Rank'] == 0:
             context = zmq.Context()
             socket = context.socket(zmq.REP)
-            print(self.__IP, self.__Port)
-            socket.bind("tcp://*:%s" % self.__Port)
+            print(self.__IP, self.__UpdatePort)
+            socket.bind("tcp://*:%s" % self.__UpdatePort)
             while True:
                 string_receive = socket.recv()
                 QueueUpdatedVertex.put(string_receive)
@@ -171,51 +171,57 @@ class UpdateThread(threading.Thread):
                     break
                 context = zmq.Context()
                 socket = context.socket(zmq.REQ)
-                socket.connect("tcp://%s:%s" % (self.__IP, self.__Port))
+                socket.connect("tcp://%s:%s" % (self.__IP, self.__UpdatePort))
                 socket.send(Str_UpdatedVertex)
                 socket.recv()
-
 
 class CalcThread(threading.Thread):
     __GraphInfo = {}
     __Dtype_All = {}
     __ControlInfo = None
     __DataInfo = None
-    __PendingTaskQueue = None
-    __RunningFlag = False
+    __IP = None
+    __Port = None
+    # __PendingTaskQueue = None
+    # __RunningFlag = False
     __stop = threading.Event()
 
     def stop(self):
         self.__stop.set()
 
-    def __init__(self, DataInfo, GraphInfo, ControlInfo, Dtype_All):
+    def __init__(self, DataInfo, GraphInfo, ControlInfo, IP, Port, Dtype_All):
         threading.Thread.__init__(self)
         self.__DataInfo = DataInfo
         self.__GraphInfo = GraphInfo
         self.__ControlInfo = ControlInfo
         self.__Dtype_All = Dtype_All
-        self.__PendingTaskQueue = Queue.Queue()
-        __RunningFlag = False
-
-    def put_task(self, PartitionID):
-        self.__PendingTaskQueue.put(PartitionID)
-
-    def is_free(self):
-        if self.__RunningFlag == False and self.__PendingTaskQueue.empty():
-            return True
+        self.__IP = IP
+        self.__Port = Port
+        # self.__PendingTaskQueue = Queue.Queue()
+        # __RunningFlag = False
+    #
+    # def put_task(self, PartitionID):
+    #     self.__PendingTaskQueue.put(PartitionID)
+    #
+    # def is_free(self):
+    #     if self.__RunningFlag == False and self.__PendingTaskQueue.empty():
+    #         return True
 
     def run(self):
         while True:
-            self.__RunningFlag = False
+            if self.__stop.is_set():
+                break
+            context = zmq.Context()
+            socket = context.socket(zmq.REQ)
+            socket.connect("tcp://%s:%s" % (self.__IP, self.__Port))
+            TaskRequest = '1 ' + MPI.COMM_WORLD.Get_rank()
+            socket.send(TaskRequest)
+            message = socket.recv()
+            if message = '-1':
+                sleep(1)
+                continue
 
-            try:
-                PartitionID_ = self.__PendingTaskQueue.get(timeout=0.05)
-            except:
-                if self.__stop.is_set():
-                    break
-                else:
-                    continue
-            self.__RunningFlag = True
+            PartitionID_ = int(message)
             UpdatedVertex = self.__ControlInfo['CalcFunc'](
                 PartitionID_, self.__DataInfo, self.__GraphInfo, self.__Dtype_All)
             start_id = PartitionID_ * self.__GraphInfo['VertexPerPartition']
@@ -227,9 +233,6 @@ class CalcThread(threading.Thread):
                                    'FilterThreshold'])] = 0
             UpdatedVertex = UpdatedVertex.astype(
                 self.__Dtype_All['VertexData'])
-            # # Update local data
-            # self.__DataInfo['VertexData'][start_id:end_id] = self.__DataInfo[
-            #     'VertexData'][start_id:end_id] + UpdatedVertex
             Tmp_UpdatedData = np.append(UpdatedVertex, PartitionID_)
             Tmp_UpdatedData = Tmp_UpdatedData.astype(
                 self.__Dtype_All['VertexData'])
@@ -237,6 +240,65 @@ class CalcThread(threading.Thread):
             Str_UpdatedData = snappy.compress(Str_UpdatedData)
             QueueUpdatedVertex.put(Str_UpdatedData)
 
+class SchedulerThread(threading.Thread):
+    __MPIInfo = {}
+    __GraphInfo = {}
+    __IP = '127.0.0.1'
+    __TaskqPort = 17071
+    __Dtype_All = {}
+    __stop = None
+
+    def stop(self, Rank):
+        self.__stop.set()
+        context_ = zmq.Context()
+        socket_ = context_.socket(zmq.REQ)
+        socket_.connect("tcp://%s:%s" % (self.__IP, self.__TaskqPort))
+        socket_.send("-1 -1")
+        socket_.recv()
+
+    def __init__(self, IP, Port, MPIInfo, GraphInfo, ControlInfo, Dtype_All):
+        threading.Thread.__init__(self)
+        self.__IP = IP
+        self.__TaskqPort = Port
+        self.__MPIInfo = MPIInfo
+        self.__GraphInfo = GraphInfo
+        self.__ControlInfo = ControlInfo
+        self.__Dtype_All = Dtype_All
+        self.__stop = threading.Event()
+
+    def run(self):
+        context = zmq.Context()
+        socket = context.socket(zmq.REP)
+        print(self.__IP, self.__TaskqPort)
+        socket.bind("tcp://*:%s" % self.__TaskqPort)
+
+        AllTask = np.zeros(self.__GraphInfo['PartitionNum'], dtype=np.int32)
+        # AllTask = AllTask * self.__ControlInfo['MaxIteration']
+        AllProgress  = self.__ControlInfo['IterationReport']
+        # self.__ControlInfo['StaleNum']
+        while True:
+            string_receive = socket.recv()
+            command, data = string_receive.split()
+            if command == '-1':   #exit
+                break
+            elif command == '1': #get task
+                if AllProgress.min() >= self.__ControlInfo['MaxIteration']:
+                    socket.send("-1")
+                    continue
+                if AllTask.min() >= self.__ControlInfo['MaxIteration']:
+                    socket.send("-1")
+                    continue
+                if AllProgress.max() - AllProgress.min() <= self.__ControlInfo['StaleNum']:
+                    candicate_partition = np.where(AllTask - AllProgress == 0)
+                    candicate_status = AllTask[candicate_partition]
+                    if len(candicate_partition) == 0:
+                        socket.send("-1")
+                    else:
+                        target_partition = candicate_partition[candicate_status.argmin()]
+                        socket.send(str(target_partition))
+                        print target_partition
+            else:
+                continue
 
 class satgraph():
     __Dtype_All = {}
@@ -244,7 +306,8 @@ class satgraph():
     __MPIInfo = {}
     __ControlInfo = {}
     __DataInfo = {}
-    __Port = 17070
+    __UpdatePort = 17070
+    __TaskqPort = 17071
     __IP = '127.0.0.1'
     __ThreadNum = 1
 
@@ -287,8 +350,9 @@ class satgraph():
     def set_MaxIteration(self, MaxIteration):
         self.__ControlInfo['MaxIteration'] = MaxIteration
 
-    def set_port(self, Port):
-        self.__Port = Port
+    def set_port(self, Port1, Port2):
+        self.__UpdatePort = Port1
+        self.__TaskqPort = Port2
 
     def set_IP(self, IP):
         self.__IP = IP
@@ -328,10 +392,6 @@ class satgraph():
         return self.__CalcFunc
 
     @property
-    def Port(self):
-        return self.__Port
-
-    @property
     def ThreadNum(self):
         return self.__ThreadNum
 
@@ -358,13 +418,13 @@ class satgraph():
                 if TaskThreadPool_[i].is_free():
                     return i
 
-    def __sync(self):
-        while True:
-            if (self.__ControlInfo['IterationNum']
-                    - self.__ControlInfo['IterationReport'].min()) \
-                    <= self.__ControlInfo['StaleNum']:
-                break
-            sleep(0.01)
+    # def __sync(self):
+    #     while True:
+    #         if (self.__ControlInfo['IterationNum']
+    #                 - self.__ControlInfo['IterationReport'].min()) \
+    #                 <= self.__ControlInfo['StaleNum']:
+    #             break
+    #         sleep(0.01)
 
     def __MPI_Initial(self):
         self.__MPIInfo['MPI_Comm'] = MPI.COMM_WORLD
@@ -395,23 +455,25 @@ class satgraph():
             self.__GraphInfo, self.__Dtype_All, Str_InitialVertex)
         # Communication Thread
         UpdateVertexThread = UpdateThread(
-            self.__IP, self.__Port, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All)
+            self.__IP, self.__UpdatePort, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All)
         UpdateVertexThread.start()
+
+        if self.__MPIInfo['MPI_Rank'] == 0:
+            TaskSchedulerThread = SchedulerThread(
+                self.__IP, self.__TaskqPort, self.__MPIInfo, self.__GraphInfo, self.__ControlInfo, self.__Dtype_All)
+            TaskSchedulerThread.start()
+
         # BroadVertexThread Thread
         BroadVertexThread = BroadThread(
             self.__MPIInfo, self.__DataInfo, self.__ControlInfo, self.__GraphInfo, self.__Dtype_All)
         BroadVertexThread.start()
 
-        AllTaskQueue = Queue.Queue()
-        for i in range(self.__ControlInfo['MaxIteration']):
-            for j in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
-                AllTaskQueue.put(j)
         TaskThreadPool = []
         TaskTotalNum = 0
 
         for i in range(self.__ThreadNum):
             new_thead = CalcThread(
-                self.__DataInfo, self.__GraphInfo, self.__ControlInfo, self.__Dtype_All)
+                self.__DataInfo, self.__GraphInfo, self.__ControlInfo, self.__IP, self.__TaskqPort, self.__Dtype_All)
             TaskThreadPool.append(new_thead)
             new_thead.start()
 
@@ -420,31 +482,31 @@ class satgraph():
 
         start_time = time.time()
         end_time   = time.time()
-        while not AllTaskQueue.empty():
-            free_threadid = self.__wait_for_threadslot(TaskThreadPool)
-            new_partion = AllTaskQueue.get()
-            CurrentIterationNum = TaskTotalNum / \
-                len(self.__ControlInfo['PartitionInfo']
-                    [self.__MPIInfo['MPI_Rank']])
+
+        while True:
+            sleep(1)
+            CurrentIterationNum =  self.__ControlInfo['IterationReport'].min()
             NewIteration = False
             if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
                 self.__ControlInfo['IterationNum'] = CurrentIterationNum
                 NewIteration = True
-            TaskTotalNum = TaskTotalNum + 1
-            self.__sync()
-            TaskThreadPool[free_threadid].put_task(new_partion)
+            # TaskTotalNum = TaskTotalNum + 1
+            # self.__sync()
             if NewIteration:
                 if self.__MPIInfo['MPI_Rank'] == 0:
                     end_time = time.time()
                     print end_time - start_time, ' # Iter: ', CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                     Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                     start_time = time.time()
+            if CurrentIterationNum == self.__ControlInfo['MaxIteration']:
+                break;
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
         if (self.__MPIInfo['MPI_Rank'] != 0):
             UpdateVertexThread.stop(-1)
         else:
+            TaskSchedulerThread.stop(0)
             sleep(0.1)
             UpdateVertexThread.stop(0)
         BroadVertexThread.stop()
@@ -452,6 +514,8 @@ class satgraph():
         print "BroadVertexThread->", self.__MPIInfo['MPI_Rank']
         UpdateVertexThread.join()
         print "UpdateVertexThread->", self.__MPIInfo['MPI_Rank']
+        if self.__MPIInfo['MPI_Rank'] == 0:
+            TaskSchedulerThread.join()
 
 
 if __name__ == '__main__':
@@ -460,13 +524,13 @@ if __name__ == '__main__':
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
-    #DataPath = '/home/mapred/GraphData/wiki/subdata/'
-    #VertexNum = 4206800
-    #PartitionNum = 20
+    DataPath = '/home/mapred/GraphData/wiki/subdata/'
+    VertexNum = 4206800
+    PartitionNum = 20
 
-    DataPath = '/home/mapred/GraphData/uk/subdata/'
-    VertexNum = 787803000
-    PartitionNum = 3000
+    # DataPath = '/home/mapred/GraphData/uk/subdata/'
+    # VertexNum = 787803000
+    # PartitionNum = 3000
 
     #DataPath = '/home/mapred/GraphData/twitter/subdata/'
     #VertexNum = 41652250
@@ -483,7 +547,7 @@ if __name__ == '__main__':
     test_graph.set_Dtype_All(Dtype_All)
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
-    test_graph.set_port(18086)
+    test_graph.set_port(18086, 18087)
     #test_graph.set_ThreadNum(1)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
