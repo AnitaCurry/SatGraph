@@ -21,6 +21,7 @@ from numpy import linalg as LA
 import pandas as pd
 
 QueueUpdatedVertex = Queue.Queue()
+BSP = True
 
 def intial_vertex(GraphInfo, Dtype_All, Str_Policy='ones'):
     if Str_Policy == 'ones':
@@ -114,10 +115,21 @@ class BroadThread(threading.Thread):
                 self.__GraphInfo['VertexPerPartition']
             end_id = (int(updated_vertex[-1]) + 1) * \
                 self.__GraphInfo['VertexPerPartition']
-            self.__DataInfo['VertexData'][start_id:end_id] = updated_vertex[
-                0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
-            self.__ControlInfo['IterationReport'][int(
-                updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1
+            if not BSP:
+                self.__DataInfo['VertexData'][start_id:end_id] = updated_vertex[
+                    0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
+                self.__ControlInfo['IterationReport'][int(
+                    updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1
+            else:
+                self.__DataInfo['VertexDataNew'][start_id:end_id] = updated_vertex[
+                    0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
+                self.__ControlInfo['IterationReport'][int(
+                    updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1
+                    while True:
+                        if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
+                            break
+                        else:
+                            sleep(0.1)
 
 
 class UpdateThread(threading.Thread):
@@ -211,6 +223,14 @@ class CalcThread(threading.Thread):
         while True:
             if self.__stop.is_set():
                 break
+
+            if BSP:
+                while True:
+                    if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
+                        break
+                    else:
+                        sleep(0.1)
+
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
             socket.connect("tcp://%s:%s" % (self.__IP, self.__Port))
@@ -325,7 +345,6 @@ class satgraph():
         self.__GraphInfo['VertexNum'] = self.__VertexNum
         self.__GraphInfo['PartitionNum'] = self.__PartitionNum
         self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition
-        self.__ControlInfo['PartitionInfo'] = {}
         self.__ControlInfo['IterationNum'] = 0
         self.__ControlInfo['IterationReport'] = None
         self.__ControlInfo['MaxIteration'] = 10
@@ -336,12 +355,16 @@ class satgraph():
         self.__DataInfo['VertexOut'] = None
         self.__DataInfo['VertexIn'] = None
         self.__DataInfo['VertexData'] = None
+        if BSP:
+            self.__DataInfo['VertexDataNew'] = None
 
     def set_FilterThreshold(self, FilterThreshold):
         self.__ControlInfo['FilterThreshold'] = FilterThreshold
 
     def set_StaleNum(self, StaleNum):
         self.__ControlInfo['StaleNum'] = StaleNum
+        if BSP:
+            self.__ControlInfo['StaleNum'] = 1
 
     def set_CalcFunc(self, CalcFunc):
         self.__ControlInfo['CalcFunc'] = CalcFunc
@@ -413,48 +436,21 @@ class satgraph():
     def DataInfo(self):
         return self.__DataInfo
 
-    def __wait_for_threadslot(self, TaskThreadPool_):
-        while True:
-            sleep(0.01)
-            for i in range(self.__ThreadNum):
-                if TaskThreadPool_[i].is_free():
-                    return i
-
-    # def __sync(self):
-    #     while True:
-    #         if (self.__ControlInfo['IterationNum']
-    #                 - self.__ControlInfo['IterationReport'].min()) \
-    #                 <= self.__ControlInfo['StaleNum']:
-    #             break
-    #         sleep(0.01)
-
     def __MPI_Initial(self):
         self.__MPIInfo['MPI_Comm'] = MPI.COMM_WORLD
         self.__MPIInfo['MPI_Size'] = self.__MPIInfo['MPI_Comm'].Get_size()
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
-    def __PartitionData(self):
-        for i in range(self.__MPIInfo['MPI_Size']):
-            self.__ControlInfo['PartitionInfo'][i] = []
-        for i in range(self.__GraphInfo['PartitionNum']):
-            j = i % self.__MPIInfo['MPI_Size']
-            self.__ControlInfo['PartitionInfo'][j].append(i)
-
-        if self.__MPIInfo['MPI_Rank'] == 0:
-            print self.__ControlInfo['PartitionInfo']
-
     def run(self, Str_InitialVertex='zero'):
         self.__MPI_Initial()
-        self.__PartitionData()
-        # load data to cache
-        # for i in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
-        #     self.__DataInfo['EdgeData'][i] = load_edgedata(
-        #         i, self.__GraphInfo, self.__Dtype_All)
         self.__DataInfo['VertexOut'] = load_vertexout(
             self.__GraphInfo, self.__Dtype_All)
         # Initial the vertex data
         self.__DataInfo['VertexData'] = intial_vertex(
             self.__GraphInfo, self.__Dtype_All, Str_InitialVertex)
+        if BSP:
+            self.__DataInfo['VertexDataNew'] = intial_vertex(
+                self.__GraphInfo, self.__Dtype_All, Str_InitialVertex)
         # Communication Thread
         UpdateVertexThread = UpdateThread(
             self.__IP, self.__UpdatePort, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All)
@@ -471,7 +467,6 @@ class satgraph():
         BroadVertexThread.start()
 
         TaskThreadPool = []
-        TaskTotalNum = 0
 
         for i in range(self.__ThreadNum):
             new_thead = CalcThread(
@@ -486,20 +481,21 @@ class satgraph():
         end_time   = time.time()
 
         while True:
-            sleep(1)
+            sleep(0.5)
             CurrentIterationNum =  self.__ControlInfo['IterationReport'].min()
             NewIteration = False
             if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
-                self.__ControlInfo['IterationNum'] = CurrentIterationNum
                 NewIteration = True
-            # TaskTotalNum = TaskTotalNum + 1
-            # self.__sync()
-            if NewIteration:
                 if self.__MPIInfo['MPI_Rank'] == 0:
                     end_time = time.time()
                     print end_time - start_time, ' # Iter: ', CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                     Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                     start_time = time.time()
+                if BSP:
+                    self.__DataInfo['VertexDataNew'][start_id:end_id] = updated_vertex[
+                        0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
+                self.__ControlInfo['IterationNum'] = CurrentIterationNum
+
             if CurrentIterationNum == self.__ControlInfo['MaxIteration']:
                 break;
 
@@ -559,4 +555,3 @@ if __name__ == '__main__':
 
     test_graph.run('pagerank')
     os._exit(0)
-    print PartitionInfo[MPI_Rank]
