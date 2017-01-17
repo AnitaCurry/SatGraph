@@ -4,6 +4,7 @@ Created on 14 Apr 2016
 @author: sunshine
 '''
 import os
+import time
 import sys
 import numpy as np
 import scipy.sparse as sparse
@@ -419,7 +420,9 @@ class satgraph():
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
-
+        
+        start_time = time.time()
+        end_time   = time.time()
         while not AllTaskQueue.empty():
             free_threadid = self.__wait_for_threadslot(TaskThreadPool)
             new_partion = AllTaskQueue.get()
@@ -435,8 +438,10 @@ class satgraph():
             TaskThreadPool[free_threadid].put_task(new_partion)
             if NewIteration:
                 if self.__MPIInfo['MPI_Rank'] == 0:
-                    print CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
+                    end_time = time.time()
+                    print end_time - start_time, ' # Iter: ', CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                     Old_Vertex_ = self.__DataInfo['VertexData'].copy()
+                    start_time = time.time()
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
@@ -458,10 +463,18 @@ if __name__ == '__main__':
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
-    DataPath = '/home/mapred/GraphData/wiki/subdata/'
-    VertexNum = 4206800
-    PartitionNum = 20
-    # VertexPerPartition = 210340
+    #DataPath = '/home/mapred/GraphData/wiki/subdata/'
+    #VertexNum = 4206800
+    #PartitionNum = 20
+
+    DataPath = '/home/mapred/GraphData/uk/subdata/'
+    VertexNum = 787803000
+    PartitionNum = 3000
+
+    #DataPath = '/home/mapred/GraphData/twitter/subdata/'
+    #VertexNum = 41652250
+    #PartitionNum = 50
+    
     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum/PartitionNum)
     test_graph = satgraph()
 
@@ -474,10 +487,11 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086)
-    test_graph.set_ThreadNum(1)
+    #test_graph.set_ThreadNum(1)
+    test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(2)
-    test_graph.set_FilterThreshold(0)
+    test_graph.set_StaleNum(5)
+    test_graph.set_FilterThreshold(0.000000001)
     test_graph.set_CalcFunc(calc_pagerank)
 
     test_graph.run('pagerank')
