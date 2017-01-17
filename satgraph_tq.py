@@ -125,11 +125,11 @@ class BroadThread(threading.Thread):
                     0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
                 self.__ControlInfo['IterationReport'][int(
                     updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1
-                    while True:
-                        if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
-                            break
-                        else:
-                            sleep(0.1)
+                while True:
+                    if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
+                        break
+                    else:
+                        sleep(0.1)
 
 
 class UpdateThread(threading.Thread):
@@ -314,7 +314,7 @@ class SchedulerThread(threading.Thread):
                         socket.send("-1")
                     else:
                         target_partition = candicate_partition[candicate_status.argmin()]
-                        print target_partition,' to ', data;
+                        #print target_partition,' to ', data;
                         AllTask[target_partition] = AllTask[target_partition] + 1
                         socket.send(str(target_partition))
                 else:
@@ -486,14 +486,13 @@ class satgraph():
             NewIteration = False
             if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
                 NewIteration = True
+                if BSP:
+                    self.__DataInfo['VertexData'] = self.__DataInfo['VertexDataNew'].copy()
                 if self.__MPIInfo['MPI_Rank'] == 0:
                     end_time = time.time()
                     print end_time - start_time, ' # Iter: ', CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                     Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                     start_time = time.time()
-                if BSP:
-                    self.__DataInfo['VertexDataNew'][start_id:end_id] = updated_vertex[
-                        0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
                 self.__ControlInfo['IterationNum'] = CurrentIterationNum
 
             if CurrentIterationNum == self.__ControlInfo['MaxIteration']:
