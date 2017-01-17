@@ -379,20 +379,19 @@ class satgraph():
         self.__MPIInfo['MPI_Size'] = self.__MPIInfo['MPI_Comm'].Get_size()
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
+    def __PartitionData(self):
+        for i in range(self.__MPIInfo['MPI_Size']):
+            self.__ControlInfo['PartitionInfo'][i] = []
+        for i in range(self.__GraphInfo['PartitionNum']):
+            j = i % self.__MPIInfo['MPI_Size']
+            self.__ControlInfo['PartitionInfo'][j].append(i)
+
+        if self.__MPIInfo['MPI_Rank'] == 0:
+            print self.__ControlInfo['PartitionInfo']
+
     def run(self, Str_InitialVertex='zero'):
         self.__MPI_Initial()
-        PartitionPerNode_ = int(math.floor(
-            self.__GraphInfo['PartitionNum'] * 1.0 / self.__MPIInfo['MPI_Size']))
-        if PartitionPerNode_ == 0:
-            PartitionPerNode_ = 1
-        for i in range(self.__MPIInfo['MPI_Size']):
-            if i == self.__MPIInfo['MPI_Size'] - 1:
-                self.__ControlInfo['PartitionInfo'][i] = range(
-                    i * PartitionPerNode_, self.__GraphInfo['PartitionNum'])
-            else:
-                self.__ControlInfo['PartitionInfo'][i] = range(
-                    i * PartitionPerNode_, (i + 1) * PartitionPerNode_)
-        print self.__ControlInfo['PartitionInfo']
+        self.__PartitionData()
         # load data to cache
         # for i in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
         #     self.__DataInfo['EdgeData'][i] = load_edgedata(
