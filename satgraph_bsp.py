@@ -5,6 +5,7 @@ Created on 14 Apr 2016
 '''
 import os
 import sys
+import time
 import numpy as np
 import scipy.sparse as sparse
 from mpi4py import MPI
@@ -109,17 +110,13 @@ class BroadThread(threading.Thread):
             Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
             updated_vertex = np.fromstring(
                 Str_UpdatedVertex, dtype=self.__Dtype_All['VertexData'])
-            if int(updated_vertex[-1]) in self.__ControlInfo['PartitionInfo'][self.__MPIInfo['MPI_Rank']]:
-                pass
-            else:
-                start_id = int(updated_vertex[-1]) * \
-                    self.__GraphInfo['VertexPerPartition']
-                end_id = (int(updated_vertex[-1]) + 1) * \
-                    self.__GraphInfo['VertexPerPartition']
-                # self.__DataInfo['VertexData'][start_id:end_id] = updated_vertex[
-                #     0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
-                self.__DataInfo['VertexDataNew'][start_id:end_id] = updated_vertex[
-                    0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
+
+            start_id = int(updated_vertex[-1]) * \
+                self.__GraphInfo['VertexPerPartition']
+            end_id = (int(updated_vertex[-1]) + 1) * \
+                self.__GraphInfo['VertexPerPartition']
+            self.__DataInfo['VertexDataNew'][start_id:end_id] = updated_vertex[
+                0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
             self.__ControlInfo['IterationReport'][int(
                 updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1
 
@@ -231,11 +228,7 @@ class CalcThread(threading.Thread):
                                    'FilterThreshold'])] = 0
             UpdatedVertex = UpdatedVertex.astype(
                 self.__Dtype_All['VertexData'])
-            # BSP would not update local data
-            # self.__DataInfo['VertexData'][start_id:end_id] = self.__DataInfo[
-                # 'VertexData'][start_id:end_id] + UpdatedVertex
-            self.__DataInfo['VertexDataNew'][start_id:end_id] = self.__DataInfo[
-                'VertexData'][start_id:end_id] + UpdatedVertex
+
             Tmp_UpdatedData = np.append(UpdatedVertex, PartitionID_)
             Tmp_UpdatedData = Tmp_UpdatedData.astype(
                 self.__Dtype_All['VertexData'])
@@ -428,6 +421,8 @@ class satgraph():
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
 
+        start_time = time.time()
+        end_time   = time.time()
         while not AllTaskQueue.empty():
             free_threadid = self.__wait_for_threadslot(TaskThreadPool)
             new_partion = AllTaskQueue.get()
@@ -445,8 +440,10 @@ class satgraph():
             TaskThreadPool[free_threadid].put_task(new_partion)
             if NewIteration:
                 if self.__MPIInfo['MPI_Rank'] == 0:
-                    print CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
+                    end_time = time.time()
+                    print end_time - start_time, ' # Iter: ', CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                     Old_Vertex_ = self.__DataInfo['VertexData'].copy()
+                    start_time = time.time()
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
