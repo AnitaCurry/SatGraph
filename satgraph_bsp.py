@@ -383,6 +383,8 @@ class satgraph():
         self.__MPI_Initial()
         PartitionPerNode_ = int(math.floor(
             self.__GraphInfo['PartitionNum'] * 1.0 / self.__MPIInfo['MPI_Size']))
+        if PartitionPerNode_ == 0:
+            PartitionPerNode_ = 1
         for i in range(self.__MPIInfo['MPI_Size']):
             if i == self.__MPIInfo['MPI_Size'] - 1:
                 self.__ControlInfo['PartitionInfo'][i] = range(
