@@ -214,10 +214,10 @@ class CalcThread(threading.Thread):
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
             socket.connect("tcp://%s:%s" % (self.__IP, self.__Port))
-            TaskRequest = '1 ' + MPI.COMM_WORLD.Get_rank()
+            TaskRequest = '1 ' + str(MPI.COMM_WORLD.Get_rank())
             socket.send(TaskRequest)
             message = socket.recv()
-            if message = '-1':
+            if message == '-1':
                 sleep(1)
                 continue
 
@@ -280,25 +280,27 @@ class SchedulerThread(threading.Thread):
             string_receive = socket.recv()
             command, data = string_receive.split()
             if command == '-1':   #exit
+                socket.send("-1")
                 break
             elif command == '1': #get task
                 if AllProgress.min() >= self.__ControlInfo['MaxIteration']:
                     socket.send("-1")
-                    continue
-                if AllTask.min() >= self.__ControlInfo['MaxIteration']:
+                elif AllTask.min() >= self.__ControlInfo['MaxIteration']:
                     socket.send("-1")
-                    continue
-                if AllProgress.max() - AllProgress.min() <= self.__ControlInfo['StaleNum']:
-                    candicate_partition = np.where(AllTask - AllProgress == 0)
+                elif AllProgress.max() - AllProgress.min() <= self.__ControlInfo['StaleNum']:
+                    candicate_partition = np.where(AllTask - AllProgress == 0)[0]
                     candicate_status = AllTask[candicate_partition]
                     if len(candicate_partition) == 0:
                         socket.send("-1")
                     else:
                         target_partition = candicate_partition[candicate_status.argmin()]
+                        print target_partition,' to ', data;
+                        AllTask[target_partition] = AllTask[target_partition] + 1
                         socket.send(str(target_partition))
-                        print target_partition
+                else:
+                    socket.send("-1")
             else:
-                continue
+                socket.send("-1")
 
 class satgraph():
     __Dtype_All = {}
@@ -367,7 +369,7 @@ class satgraph():
         self.__GraphInfo['PartitionNum'] = self.__PartitionNum
         self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition
         self.__ControlInfo['IterationReport'] = np.zeros(
-            self.__GraphInfo['PartitionNum'])
+            self.__GraphInfo['PartitionNum'], dtype=np.int32)
 
     def set_Dtype_All(self, Dtype_All):
         self.__Dtype_All['VertexData'] = Dtype_All[0]
@@ -549,9 +551,9 @@ if __name__ == '__main__':
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
     #test_graph.set_ThreadNum(1)
-    test_graph.set_ThreadNum(4)
+    test_graph.set_ThreadNum(5)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(10)
+    test_graph.set_StaleNum(1)
     test_graph.set_FilterThreshold(0.000000001)
     test_graph.set_CalcFunc(calc_pagerank)
 

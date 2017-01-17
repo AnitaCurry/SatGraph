@@ -487,7 +487,7 @@ if __name__ == '__main__':
     #test_graph.set_ThreadNum(1)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(10)
+    test_graph.set_StaleNum(0)
     test_graph.set_FilterThreshold(0.000000001)
     test_graph.set_CalcFunc(calc_pagerank)
 
