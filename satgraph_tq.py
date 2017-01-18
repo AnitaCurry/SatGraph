@@ -24,36 +24,37 @@ QueueUpdatedVertex = Queue.Queue()
 #BSP = True
 BSP = False
 
+
 def intial_vertex(GraphInfo,
                   Dtype_All,
                   Str_Policy='ones'):
     if Str_Policy == 'ones':
-        return np.ones(GraphInfo['VertexNum'], \
+        return np.ones(GraphInfo['VertexNum'],
                        dtype=Dtype_All['VertexData'])
     elif Str_Policy == 'zeros':
-        return np.zeros(GraphInfo['VertexNum'], \
+        return np.zeros(GraphInfo['VertexNum'],
                         dtype=Dtype_All['VertexData'])
     elif Str_Policy == 'random':
         temp = np.random.random(GraphInfo['VertexNum'])
         temp = temp.astype(Dtype_All['VertexData'])
         return temp
     elif Str_Policy == 'pagerank':
-        temp = np.zeros(GraphInfo['VertexNum'], \
+        temp = np.zeros(GraphInfo['VertexNum'],
                         dtype=Dtype_All['VertexData'])
         temp = temp + 1.0 / GraphInfo['VertexNum']
         temp = temp.astype(Dtype_All['VertexData'])
         return temp
     else:
-        return np.ones(GraphInfo['VertexNum'], \
+        return np.ones(GraphInfo['VertexNum'],
                        dtype=Dtype_All[0])
 
 
 def load_edgedata(PartitionID,
                   GraphInfo,
                   Dtype_All):
-    _file = open(GraphInfo['DataPath'] + \
-                 str(PartitionID) + \
-                 '.edge', \
+    _file = open(GraphInfo['DataPath'] +
+                 str(PartitionID) +
+                 '.edge',
                  'r')
     temp = np.fromfile(_file,
                        dtype=Dtype_All['VertexEdgeInfo'])
@@ -95,6 +96,7 @@ def calc_pagerank(PartitionID,
     UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex
+
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
@@ -140,7 +142,7 @@ class BroadThread(threading.Thread):
             self.__ControlInfo['IterationReport'][i] + 1
         while True:
             if self.__ControlInfo['IterationNum'] == \
-                self.__ControlInfo['IterationReport'].min():
+                    self.__ControlInfo['IterationReport'].min():
                 break
             else:
                 sleep(0.1)
@@ -174,6 +176,7 @@ class BroadThread(threading.Thread):
     def run(self):
         while True:
             self.broadcast_process()
+
 
 class UpdateThread(threading.Thread):
     __MPIInfo = {}
@@ -271,7 +274,7 @@ class CalcThread(threading.Thread):
         if BSP:
             while True:
                 if self.__ControlInfo['IterationNum'] == \
-                    self.__ControlInfo['IterationReport'].min():
+                        self.__ControlInfo['IterationReport'].min():
                     break
                 else:
                     sleep(0.1)
@@ -302,7 +305,7 @@ class CalcThread(threading.Thread):
             UpdatedVertex = UpdatedVertex - \
                 self.__DataInfo['VertexData'][start_id:end_id]
 
-            filterd_id = np.where(abs(UpdatedVertex) <=\
+            filterd_id = np.where(abs(UpdatedVertex) <=
                                   self.__ControlInfo['FilterThreshold'])
             UpdatedVertex[filterd_id] = 0
 
@@ -354,7 +357,7 @@ class SchedulerThread(threading.Thread):
         elif AllTask.min() >= self.__ControlInfo['MaxIteration']:
             socket.send("-1")
         elif AllProgress.max() - AllProgress.min() <= \
-            self.__ControlInfo['StaleNum']:
+                self.__ControlInfo['StaleNum']:
             candicate_partition = np.where(
                 AllTask - AllProgress == 0)[0]
             candicate_status = AllTask[candicate_partition]
@@ -388,6 +391,7 @@ class SchedulerThread(threading.Thread):
                 self.assign_task(AllTask, AllProgress, socket)
             else:
                 socket.send("-1")
+
 
 class satgraph():
     __Dtype_All = {}
@@ -528,59 +532,58 @@ class satgraph():
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
-
     def run(self, Str_InitialVertex='zero'):
         self.__MPI_Initial()
         self.__DataInfo['VertexOut'] = \
-            load_vertexout(self.__GraphInfo, \
+            load_vertexout(self.__GraphInfo,
                            self.__Dtype_All)
         # Initial the vertex data
         self.__DataInfo['VertexData'] = \
-            intial_vertex(self.__GraphInfo, \
-                          self.__Dtype_All, \
+            intial_vertex(self.__GraphInfo,
+                          self.__Dtype_All,
                           Str_InitialVertex)
 
         if BSP:
             self.__DataInfo['VertexDataNew'] = \
-                intial_vertex(self.__GraphInfo, \
-                              self.__Dtype_All, \
+                intial_vertex(self.__GraphInfo,
+                              self.__Dtype_All,
                               Str_InitialVertex)
 
         UpdateVertexThread = \
-            UpdateThread(self.__IP, \
-                         self.__UpdatePort, \
-                         self.__MPIInfo, \
-                         self.__GraphInfo, \
+            UpdateThread(self.__IP,
+                         self.__UpdatePort,
+                         self.__MPIInfo,
+                         self.__GraphInfo,
                          self.__Dtype_All)
         UpdateVertexThread.start()
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             TaskSchedulerThread = \
                 SchedulerThread(
-                    self.__IP, \
-                    self.__TaskqPort, \
-                    self.__MPIInfo, \
-                    self.__GraphInfo, \
-                    self.__ControlInfo, \
+                    self.__IP,
+                    self.__TaskqPort,
+                    self.__MPIInfo,
+                    self.__GraphInfo,
+                    self.__ControlInfo,
                     self.__Dtype_All)
             TaskSchedulerThread.start()
 
         BroadVertexThread = \
-            BroadThread(self.__MPIInfo, \
-                        self.__DataInfo,\
-                        self.__ControlInfo, \
-                        self.__GraphInfo, \
+            BroadThread(self.__MPIInfo,
+                        self.__DataInfo,
+                        self.__ControlInfo,
+                        self.__GraphInfo,
                         self.__Dtype_All)
         BroadVertexThread.start()
 
         TaskThreadPool = []
         for i in range(self.__ThreadNum):
             new_thead = \
-                CalcThread(self.__DataInfo, \
-                           self.__GraphInfo, \
-                           self.__ControlInfo, \
-                           self.__IP, \
-                           self.__TaskqPort, \
+                CalcThread(self.__DataInfo,
+                           self.__GraphInfo,
+                           self.__ControlInfo,
+                           self.__IP,
+                           self.__TaskqPort,
                            self.__Dtype_All)
             TaskThreadPool.append(new_thead)
             new_thead.start()
