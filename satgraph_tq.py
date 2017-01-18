@@ -24,59 +24,77 @@ QueueUpdatedVertex = Queue.Queue()
 #BSP = True
 BSP = False
 
-def intial_vertex(GraphInfo, Dtype_All, Str_Policy='ones'):
+def intial_vertex(GraphInfo,
+                  Dtype_All,
+                  Str_Policy='ones'):
     if Str_Policy == 'ones':
-        return np.ones(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData'])
+        return np.ones(GraphInfo['VertexNum'], \
+                       dtype=Dtype_All['VertexData'])
     elif Str_Policy == 'zeros':
-        return np.zeros(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData'])
+        return np.zeros(GraphInfo['VertexNum'], \
+                        dtype=Dtype_All['VertexData'])
     elif Str_Policy == 'random':
         temp = np.random.random(GraphInfo['VertexNum'])
         temp = temp.astype(Dtype_All['VertexData'])
         return temp
     elif Str_Policy == 'pagerank':
-        temp = np.zeros(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData'])
+        temp = np.zeros(GraphInfo['VertexNum'], \
+                        dtype=Dtype_All['VertexData'])
         temp = temp + 1.0 / GraphInfo['VertexNum']
         temp = temp.astype(Dtype_All['VertexData'])
         return temp
     else:
-        return np.ones(GraphInfo['VertexNum'], dtype=Dtype_All[0])
+        return np.ones(GraphInfo['VertexNum'], \
+                       dtype=Dtype_All[0])
 
 
-def load_edgedata(PartitionID, GraphInfo, Dtype_All):
-    _file = open(GraphInfo['DataPath'] + str(PartitionID) + '.edge', 'r')
-    temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
-    data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
+def load_edgedata(PartitionID,
+                  GraphInfo,
+                  Dtype_All):
+    _file = open(GraphInfo['DataPath'] + \
+                 str(PartitionID) + \
+                 '.edge', \
+                 'r')
+    temp = np.fromfile(_file,
+                       dtype=Dtype_All['VertexEdgeInfo'])
+    data = np.ones(temp[0],
+                   dtype=Dtype_All['EdgeData'])
     indices = temp[3:3 + int(temp[1])]
     indptr = temp[3 + int(temp[1]):3 + int(temp[1]) + int(temp[2])]
-    mat_data = sparse.csr_matrix((data, indices, indptr), shape=(
-        GraphInfo['VertexPerPartition'], GraphInfo['VertexNum']))
+
+    encoded_data = (data, indices, indptr)
+    encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
+    mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
     _file.close()
     return mat_data
 
 
-def load_vertexin(GraphInfo, Dtype_All):
+def load_vertexin(GraphInfo,
+                  Dtype_All):
     _file = open(GraphInfo['DataPath'] + 'vertexin', 'r')
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     _file.close()
     return temp
 
 
-def load_vertexout(GraphInfo, Dtype_All):
+def load_vertexout(GraphInfo,
+                   Dtype_All):
     _file = open(GraphInfo['DataPath'] + 'vertexout', 'r')
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     _file.close()
     return temp
 
 
-def calc_pagerank(PartitionID, DataInfo, GraphInfo, Dtype_All):
-
+def calc_pagerank(PartitionID,
+                  DataInfo,
+                  GraphInfo,
+                  Dtype_All):
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
-
-    UpdatedVertex = GraphMatrix.dot(
-        DataInfo['VertexData'] / DataInfo['VertexOut']) * 0.85 + 1.0 / GraphInfo['VertexNum']
+    NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
+    UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
+    UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex
-
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
@@ -86,7 +104,12 @@ class BroadThread(threading.Thread):
     __ControlInfo = None
     __stop = None
 
-    def __init__(self, MPIInfo, DataInfo, ControlInfo, GraphInfo, Dtype_All):
+    def __init__(self,
+                 MPIInfo,
+                 DataInfo,
+                 ControlInfo,
+                 GraphInfo,
+                 Dtype_All):
         threading.Thread.__init__(self)
         self.__MPIInfo = MPIInfo
         self.__DataInfo = DataInfo
@@ -98,40 +121,59 @@ class BroadThread(threading.Thread):
     def stop(self):
         self.__stop.set()
 
+    def broadcast(self):
+        if self.__MPIInfo['MPI_Rank'] == 0:
+            Str_UpdatedVertex = None
+            Str_UpdatedVertex = QueueUpdatedVertex.get()
+        else:
+            Str_UpdatedVertex = None
+        return self.__MPIInfo['MPI_Comm'].bcast(Str_UpdatedVertex,
+                                                root=0)
+
+    def update_BSP(self, updated_vertex, start_id, end_id):
+        new_vertex = updated_vertex[0:-1] + \
+            self.__DataInfo['VertexData'][start_id:end_id]
+        self.__DataInfo['VertexDataNew'][start_id:end_id] = new_vertex
+
+        i = int(updated_vertex[-1])
+        self.__ControlInfo['IterationReport'][i] = \
+            self.__ControlInfo['IterationReport'][i] + 1
+        while True:
+            if self.__ControlInfo['IterationNum'] == \
+                self.__ControlInfo['IterationReport'].min():
+                break
+            else:
+                sleep(0.1)
+
+    def update_SSP(self, updated_vertex, start_id, end_id):
+        new_vertex = updated_vertex[0:-1] + \
+            self.__DataInfo['VertexData'][start_id:end_id]
+        self.__DataInfo['VertexData'][start_id:end_id] = new_vertex
+
+        i = int(updated_vertex[-1])
+        self.__ControlInfo['IterationReport'][i] = \
+            self.__ControlInfo['IterationReport'][i] + 1
+
+    def broadcast_process(self):
+        Str_UpdatedVertex = broadcast()
+        if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
+            break
+        Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
+        updated_vertex = np.fromstring(Str_UpdatedVertex,
+                                       dtype=self.__Dtype_All['VertexData'])
+        start_id = int(updated_vertex[-1]) * \
+            self.__GraphInfo['VertexPerPartition']
+        end_id = (int(updated_vertex[-1]) + 1) * \
+            self.__GraphInfo['VertexPerPartition']
+
+        if not BSP:
+            update_SSP(updated_vertex, start_id, end_id)
+        else:
+            update_BSP(updated_vertex, start_id, end_id)
+
     def run(self):
         while True:
-            if self.__MPIInfo['MPI_Rank'] == 0:
-                Str_UpdatedVertex = None
-                Str_UpdatedVertex = QueueUpdatedVertex.get()
-            else:
-                Str_UpdatedVertex = None
-            Str_UpdatedVertex = self.__MPIInfo[
-                'MPI_Comm'].bcast(Str_UpdatedVertex, root=0)
-            if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
-                break
-            Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
-            updated_vertex = np.fromstring(
-                Str_UpdatedVertex, dtype=self.__Dtype_All['VertexData'])
-            start_id = int(updated_vertex[-1]) * \
-                self.__GraphInfo['VertexPerPartition']
-            end_id = (int(updated_vertex[-1]) + 1) * \
-                self.__GraphInfo['VertexPerPartition']
-            if not BSP:
-                self.__DataInfo['VertexData'][start_id:end_id] = updated_vertex[
-                    0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
-                self.__ControlInfo['IterationReport'][int(
-                    updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1
-            else:
-                self.__DataInfo['VertexDataNew'][start_id:end_id] = updated_vertex[
-                    0:-1] + self.__DataInfo['VertexData'][start_id:end_id]
-                self.__ControlInfo['IterationReport'][int(
-                    updated_vertex[-1])] = self.__ControlInfo['IterationReport'][int(updated_vertex[-1])] + 1
-                while True:
-                    if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
-                        break
-                    else:
-                        sleep(0.1)
-
+            self.broadcast_process()
 
 class UpdateThread(threading.Thread):
     __MPIInfo = {}
@@ -153,7 +195,12 @@ class UpdateThread(threading.Thread):
             self.__stop.set()
             QueueUpdatedVertex.put('exit')
 
-    def __init__(self, IP, Port, MPIInfo, GraphInfo, Dtype_All):
+    def __init__(self,
+                 IP,
+                 Port,
+                 MPIInfo,
+                 GraphInfo,
+                 Dtype_All):
         threading.Thread.__init__(self)
         self.__IP = IP
         self.__UpdatePort = Port
@@ -188,6 +235,7 @@ class UpdateThread(threading.Thread):
                 socket.send(Str_UpdatedVertex)
                 socket.recv()
 
+
 class CalcThread(threading.Thread):
     __GraphInfo = {}
     __Dtype_All = {}
@@ -202,7 +250,13 @@ class CalcThread(threading.Thread):
     def stop(self):
         self.__stop.set()
 
-    def __init__(self, DataInfo, GraphInfo, ControlInfo, IP, Port, Dtype_All):
+    def __init__(self,
+                 DataInfo,
+                 GraphInfo,
+                 ControlInfo,
+                 IP,
+                 Port,
+                 Dtype_All):
         threading.Thread.__init__(self)
         self.__DataInfo = DataInfo
         self.__GraphInfo = GraphInfo
@@ -210,28 +264,21 @@ class CalcThread(threading.Thread):
         self.__Dtype_All = Dtype_All
         self.__IP = IP
         self.__Port = Port
-        # self.__PendingTaskQueue = Queue.Queue()
-        # __RunningFlag = False
-    #
-    # def put_task(self, PartitionID):
-    #     self.__PendingTaskQueue.put(PartitionID)
-    #
-    # def is_free(self):
-    #     if self.__RunningFlag == False and self.__PendingTaskQueue.empty():
-    #         return True
+
+    def sync(self):
+        if self.__stop.is_set():
+            break
+        if BSP:
+            while True:
+                if self.__ControlInfo['IterationNum'] == \
+                    self.__ControlInfo['IterationReport'].min():
+                    break
+                else:
+                    sleep(0.1)
 
     def run(self):
         while True:
-            if self.__stop.is_set():
-                break
-
-            if BSP:
-                while True:
-                    if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
-                        break
-                    else:
-                        sleep(0.1)
-
+            self.sync()
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
             socket.connect("tcp://%s:%s" % (self.__IP, self.__Port))
@@ -242,24 +289,32 @@ class CalcThread(threading.Thread):
                 sleep(1)
                 continue
 
-            PartitionID_ = int(message)
-            UpdatedVertex = self.__ControlInfo['CalcFunc'](
-                PartitionID_, self.__DataInfo, self.__GraphInfo, self.__Dtype_All)
-            start_id = PartitionID_ * self.__GraphInfo['VertexPerPartition']
-            end_id = (PartitionID_ + 1) * \
+            i = int(message)
+            UpdatedVertex = \
+                self.__ControlInfo['CalcFunc'](i,
+                                               self.__DataInfo,
+                                               self.__GraphInfo,
+                                               self.__Dtype_All)
+            start_id = i * \
+                self.__GraphInfo['VertexPerPartition']
+            end_id = (i + 1) * \
                 self.__GraphInfo['VertexPerPartition']
             UpdatedVertex = UpdatedVertex - \
                 self.__DataInfo['VertexData'][start_id:end_id]
-            UpdatedVertex[np.where(abs(UpdatedVertex) <= self.__ControlInfo[
-                                   'FilterThreshold'])] = 0
-            UpdatedVertex = UpdatedVertex.astype(
-                self.__Dtype_All['VertexData'])
-            Tmp_UpdatedData = np.append(UpdatedVertex, PartitionID_)
-            Tmp_UpdatedData = Tmp_UpdatedData.astype(
-                self.__Dtype_All['VertexData'])
+
+            filterd_id = np.where(abs(UpdatedVertex) <=\
+                                  self.__ControlInfo['FilterThreshold'])
+            UpdatedVertex[filterd_id] = 0
+
+            UpdatedVertex = \
+                UpdatedVertex.astype(self.__Dtype_All['VertexData'])
+            Tmp_UpdatedData = np.append(UpdatedVertex, i)
+            Tmp_UpdatedData = \
+                Tmp_UpdatedData.astype(self.__Dtype_All['VertexData'])
             Str_UpdatedData = Tmp_UpdatedData.tostring()
             Str_UpdatedData = snappy.compress(Str_UpdatedData)
             QueueUpdatedVertex.put(Str_UpdatedData)
+
 
 class SchedulerThread(threading.Thread):
     __MPIInfo = {}
@@ -277,7 +332,13 @@ class SchedulerThread(threading.Thread):
         socket_.send("-1 -1")
         socket_.recv()
 
-    def __init__(self, IP, Port, MPIInfo, GraphInfo, ControlInfo, Dtype_All):
+    def __init__(self,
+                 IP,
+                 Port,
+                 MPIInfo,
+                 GraphInfo,
+                 ControlInfo,
+                 Dtype_All):
         threading.Thread.__init__(self)
         self.__IP = IP
         self.__TaskqPort = Port
@@ -287,6 +348,28 @@ class SchedulerThread(threading.Thread):
         self.__Dtype_All = Dtype_All
         self.__stop = threading.Event()
 
+    def assign_task(self, AllTask, AllProgress, socket):
+        if AllProgress.min() >= self.__ControlInfo['MaxIteration']:
+            socket.send("-1")
+        elif AllTask.min() >= self.__ControlInfo['MaxIteration']:
+            socket.send("-1")
+        elif AllProgress.max() - AllProgress.min() <= \
+            self.__ControlInfo['StaleNum']:
+            candicate_partition = np.where(
+                AllTask - AllProgress == 0)[0]
+            candicate_status = AllTask[candicate_partition]
+            if len(candicate_partition) == 0:
+                socket.send("-1")
+            else:
+                target_partition = candicate_partition[
+                    candicate_status.argmin()]
+                # print target_partition,' to ', data;
+                AllTask[target_partition] = AllTask[
+                    target_partition] + 1
+                socket.send(str(target_partition))
+        else:
+            socket.send("-1")
+
     def run(self):
         context = zmq.Context()
         socket = context.socket(zmq.REP)
@@ -294,32 +377,15 @@ class SchedulerThread(threading.Thread):
         socket.bind("tcp://*:%s" % self.__TaskqPort)
 
         AllTask = np.zeros(self.__GraphInfo['PartitionNum'], dtype=np.int32)
-        # AllTask = AllTask * self.__ControlInfo['MaxIteration']
-        AllProgress  = self.__ControlInfo['IterationReport']
-        # self.__ControlInfo['StaleNum']
+        AllProgress = self.__ControlInfo['IterationReport']
         while True:
             string_receive = socket.recv()
             command, data = string_receive.split()
-            if command == '-1':   #exit
+            if command == '-1':  # exit
                 socket.send("-1")
                 break
-            elif command == '1': #get task
-                if AllProgress.min() >= self.__ControlInfo['MaxIteration']:
-                    socket.send("-1")
-                elif AllTask.min() >= self.__ControlInfo['MaxIteration']:
-                    socket.send("-1")
-                elif AllProgress.max() - AllProgress.min() <= self.__ControlInfo['StaleNum']:
-                    candicate_partition = np.where(AllTask - AllProgress == 0)[0]
-                    candicate_status = AllTask[candicate_partition]
-                    if len(candicate_partition) == 0:
-                        socket.send("-1")
-                    else:
-                        target_partition = candicate_partition[candicate_status.argmin()]
-                        #print target_partition,' to ', data;
-                        AllTask[target_partition] = AllTask[target_partition] + 1
-                        socket.send(str(target_partition))
-                else:
-                    socket.send("-1")
+            elif command == '1':  # get task
+                self.assign_task(AllTask, AllProgress, socket)
             else:
                 socket.send("-1")
 
@@ -442,36 +508,80 @@ class satgraph():
         self.__MPIInfo['MPI_Size'] = self.__MPIInfo['MPI_Comm'].Get_size()
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
+    def graph_process(self, start_time):
+        sleep(0.1)
+        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
+        NewIteration = False
+        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
+            NewIteration = True
+            if BSP:
+                self.__DataInfo['VertexData'] = \
+                    self.__DataInfo['VertexDataNew'].copy()
+            if self.__MPIInfo['MPI_Rank'] == 0:
+                end_time = time.time()
+                diff_vertex = \
+                    10000 * \
+                    LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
+                print end_time - start_time, ' # Iter: ', \
+                    CurrentIterationNum, '->', diff_vertex
+                Old_Vertex_ = self.__DataInfo['VertexData'].copy()
+            self.__ControlInfo['IterationNum'] = CurrentIterationNum
+        return NewIteration, CurrentIterationNum
+
+
     def run(self, Str_InitialVertex='zero'):
         self.__MPI_Initial()
-        self.__DataInfo['VertexOut'] = load_vertexout(
-            self.__GraphInfo, self.__Dtype_All)
+        self.__DataInfo['VertexOut'] = \
+            load_vertexout(self.__GraphInfo, \
+                           self.__Dtype_All)
         # Initial the vertex data
-        self.__DataInfo['VertexData'] = intial_vertex(
-            self.__GraphInfo, self.__Dtype_All, Str_InitialVertex)
+        self.__DataInfo['VertexData'] = \
+            intial_vertex(self.__GraphInfo, \
+                          self.__Dtype_All, \
+                          Str_InitialVertex)
+
         if BSP:
-            self.__DataInfo['VertexDataNew'] = intial_vertex(
-                self.__GraphInfo, self.__Dtype_All, Str_InitialVertex)
-        # Communication Thread
-        UpdateVertexThread = UpdateThread(
-            self.__IP, self.__UpdatePort, self.__MPIInfo, self.__GraphInfo, self.__Dtype_All)
+            self.__DataInfo['VertexDataNew'] = \
+                intial_vertex(self.__GraphInfo, \
+                              self.__Dtype_All, \
+                              Str_InitialVertex)
+
+        UpdateVertexThread = \
+            UpdateThread(self.__IP, \
+                         self.__UpdatePort, \
+                         self.__MPIInfo, \
+                         self.__GraphInfo, \
+                         self.__Dtype_All)
         UpdateVertexThread.start()
 
         if self.__MPIInfo['MPI_Rank'] == 0:
-            TaskSchedulerThread = SchedulerThread(
-                self.__IP, self.__TaskqPort, self.__MPIInfo, self.__GraphInfo, self.__ControlInfo, self.__Dtype_All)
+            TaskSchedulerThread = \
+                SchedulerThread(
+                    self.__IP, \
+                    self.__TaskqPort, \
+                    self.__MPIInfo, \
+                    self.__GraphInfo, \
+                    self.__ControlInfo, \
+                    self.__Dtype_All)
             TaskSchedulerThread.start()
 
-        # BroadVertexThread Thread
-        BroadVertexThread = BroadThread(
-            self.__MPIInfo, self.__DataInfo, self.__ControlInfo, self.__GraphInfo, self.__Dtype_All)
+        BroadVertexThread = \
+            BroadThread(self.__MPIInfo, \
+                        self.__DataInfo,\
+                        self.__ControlInfo, \
+                        self.__GraphInfo, \
+                        self.__Dtype_All)
         BroadVertexThread.start()
 
         TaskThreadPool = []
-
         for i in range(self.__ThreadNum):
-            new_thead = CalcThread(
-                self.__DataInfo, self.__GraphInfo, self.__ControlInfo, self.__IP, self.__TaskqPort, self.__Dtype_All)
+            new_thead = \
+                CalcThread(self.__DataInfo, \
+                           self.__GraphInfo, \
+                           self.__ControlInfo, \
+                           self.__IP, \
+                           self.__TaskqPort, \
+                           self.__Dtype_All)
             TaskThreadPool.append(new_thead)
             new_thead.start()
 
@@ -479,25 +589,13 @@ class satgraph():
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
 
         start_time = time.time()
-        end_time   = time.time()
-
         while True:
-            sleep(0.1)
-            CurrentIterationNum =  self.__ControlInfo['IterationReport'].min()
-            NewIteration = False
-            if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
-                NewIteration = True
-                if BSP:
-                    self.__DataInfo['VertexData'] = self.__DataInfo['VertexDataNew'].copy()
-                if self.__MPIInfo['MPI_Rank'] == 0:
-                    end_time = time.time()
-                    print end_time - start_time, ' # Iter: ', CurrentIterationNum, '->', 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
-                    Old_Vertex_ = self.__DataInfo['VertexData'].copy()
-                    start_time = time.time()
-                self.__ControlInfo['IterationNum'] = CurrentIterationNum
-
-            if CurrentIterationNum == self.__ControlInfo['MaxIteration']:
-                break;
+            NewIteration, CurrentIteration = \
+                self.graph_process(start_time)
+            if CurrentIteration == self.__ControlInfo['MaxIteration']:
+                break
+            if NewIteration:
+                start_time = time.time()
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
@@ -534,7 +632,7 @@ if __name__ == '__main__':
     VertexNum = 41652250
     PartitionNum = 50
 
-    GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum/PartitionNum)
+    GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
     test_graph = satgraph()
 
     rank_0_host = None
@@ -546,7 +644,7 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    #test_graph.set_ThreadNum(1)
+    # test_graph.set_ThreadNum(1)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(2)
