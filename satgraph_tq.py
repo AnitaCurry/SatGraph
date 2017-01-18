@@ -516,7 +516,7 @@ class satgraph():
         self.__MPIInfo['MPI_Size'] = self.__MPIInfo['MPI_Comm'].Get_size()
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
-    def graph_process(self, start_time):
+    def graph_process(self):
         sleep(0.1)
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
         NewIteration = False
@@ -525,14 +525,6 @@ class satgraph():
             if BSP:
                 self.__DataInfo['VertexData'] = \
                     self.__DataInfo['VertexDataNew'].copy()
-            if self.__MPIInfo['MPI_Rank'] == 0:
-                end_time = time.time()
-                diff_vertex = \
-                    10000 * \
-                    LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
-                print end_time - start_time, ' # Iter: ', \
-                    CurrentIterationNum, '->', diff_vertex
-                Old_Vertex_ = self.__DataInfo['VertexData'].copy()
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
@@ -594,14 +586,19 @@ class satgraph():
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
+            start_time = time.time()
 
-        start_time = time.time()
         while True:
-            NewIteration, CurrentIteration = \
-                self.graph_process(start_time)
+            NewIteration, CurrentIteration = self.graph_process()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
                 break
-            if NewIteration:
+            if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
+                end_time = time.time()
+                diff_vertex = 10000 * \
+                    LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
+                print end_time - start_time, ' # Iter: ', \
+                    CurrentIteration, '->', diff_vertex
+                Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                 start_time = time.time()
 
         for i in range(self.__ThreadNum):
