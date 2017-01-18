@@ -86,14 +86,13 @@ def calc_pagerank(PartitionID,
     ActiveVertexID = np.where(DataInfo['VertexVersion']>=IterationNum)[0]
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     if not PARTIALCOMP:
-        if len(ActiveVertexID)*1.0/GraphMatrix.shape[1] <= 1:
+        if len(ActiveVertexID)*1.0/GraphMatrix.shape[1] <= 0.001:
             PARTIALCOMP = True
     # if MPI.COMM_WORLD.Get_rank() == 0:
     #     print IterationNum, ' # ', len(ActiveVertexID)*1.0/GraphMatrix.shape[1];
     if PARTIALCOMP:
         start_id = PartitionID * GraphInfo['VertexPerPartition']
         end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
-        # ActiveVertex = np.zeros(GraphMatrix.shape[1], dtype=Dtype_All['VertexData'])
         ActiveVertex = np.zeros(GraphMatrix.shape[1], dtype=np.bool)
         UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
         # ActiveVertex[ActiveVertexID] = DataInfo['VertexData'][ActiveVertexID]
@@ -101,13 +100,15 @@ def calc_pagerank(PartitionID,
         TmpRowData = GraphMatrix.dot(ActiveVertex)
         TmpRowData = TmpRowData.astype(np.bool)
         ActiveRowID = np.where(TmpRowData == True)[0]
+        if len(ActiveRowID) == 0:
+            return UpdatedVertex
         # if MPI.COMM_WORLD.Get_rank() == 0:
         #     print IterationNum, ' # ', len(ActiveRowID)*1.0/GraphMatrix.shape[0];
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex[ActiveRowID] = \
             GraphMatrix[ActiveRowID].dot(NormlizedVertex) * 0.85
         UpdatedVertex[ActiveRowID] = \
-            UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+            UpdatedVertex[ActiveRowID] + 1.0 / GraphInfo['VertexNum']
         #
         # NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         # UpdatedVertex = \
@@ -681,7 +682,8 @@ if __name__ == '__main__':
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(3)
-    test_graph.set_FilterThreshold(0.000000001)
+    # test_graph.set_FilterThreshold(0.000000001)
+    test_graph.set_FilterThreshold(0.00000001)
     test_graph.set_CalcFunc(calc_pagerank)
 
     test_graph.run('pagerank')
