@@ -91,9 +91,9 @@ def calc_pagerank(PartitionID,
     # if MPI.COMM_WORLD.Get_rank() == 0:
     #     print IterationNum, ' # ', len(ActiveVertexID);
     if PARTIALCOMP:
-        ActiveVertex = np.zeros(len(DataInfo['VertexData']),
+        ActiveVertex = np.zeros(GraphMatrix.shape[1],
                                 dtype=Dtype_All['VertexData'])
-        UpdatedVertex = np.zeros(len(DataInfo['VertexData']),
+        UpdatedVertex = np.zeros(GraphMatrix.shape[0],
                                 dtype=Dtype_All['VertexData'])
         ActiveVertex[ActiveVertexID] = DataInfo['VertexData'][ActiveVertexID]
         TmpRowData = GraphMatrix.dot(ActiveVertex)
