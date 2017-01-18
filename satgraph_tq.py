@@ -159,7 +159,7 @@ class BroadThread(threading.Thread):
     def broadcast_process(self):
         Str_UpdatedVertex = broadcast()
         if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
-            break
+            return -1
         Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
         updated_vertex = np.fromstring(Str_UpdatedVertex,
                                        dtype=self.__Dtype_All['VertexData'])
@@ -172,10 +172,12 @@ class BroadThread(threading.Thread):
             update_SSP(updated_vertex, start_id, end_id)
         else:
             update_BSP(updated_vertex, start_id, end_id)
+        return 1
 
     def run(self):
         while True:
-            self.broadcast_process()
+            if not self.broadcast_process():
+                break
 
 
 class UpdateThread(threading.Thread):
