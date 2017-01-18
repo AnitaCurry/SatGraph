@@ -17,6 +17,7 @@ from numpy import linalg as LA
 QueueUpdatedVertex = Queue.Queue()
 # BSP = True
 BSP = False
+PARTIALCOMP = False
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -80,15 +81,38 @@ def calc_pagerank(PartitionID,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
+    # ActiveVertexID = None
+    global PARTIALCOMP
     ActiveVertexID = np.where(DataInfo['VertexVersion']>=IterationNum)[0]
-    if MPI.COMM_WORLD.Get_rank() == 0:
-        print IterationNum, ' # ', len(ActiveVertexID);
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
-    NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-    UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
-    UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
-    UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-    return UpdatedVertex
+    if not PARTIALCOMP:
+        if len(ActiveVertexID)*1.0/len(DataInfo['VertexData']) < 1:
+            PARTIALCOMP = True
+    # if MPI.COMM_WORLD.Get_rank() == 0:
+    #     print IterationNum, ' # ', len(ActiveVertexID);
+    if PARTIALCOMP:
+        ActiveVertex = np.zeros(len(DataInfo['VertexData']),
+                                dtype=Dtype_All['VertexData'])
+        UpdatedVertex = np.zeros(len(DataInfo['VertexData']),
+                                dtype=Dtype_All['VertexData'])
+        ActiveVertex[ActiveVertexID] = DataInfo['VertexData'][ActiveVertexID]
+        TmpRowData = GraphMatrix.dot(ActiveVertex)
+        ActiveRowID = np.where(TmpRowData>0)[0]
+
+        NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
+        UpdatedVertex[ActiveRowID] = \
+            GraphMatrix[ActiveRowID].dot(NormlizedVertex) * 0.85
+        UpdatedVertex[ActiveRowID] = \
+            UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+        UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+        return UpdatedVertex
+
+    else:
+        NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
+        UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
+        UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+        UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+        return UpdatedVertex
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
