@@ -285,6 +285,7 @@ class CalcThread(threading.Thread):
     def run(self):
         while True:
             if not self.sync():
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!";
                 break
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
@@ -599,15 +600,15 @@ class satgraph():
         if self.__MPIInfo['MPI_Rank'] == 0:
             app_end_time = time.time()
             print 'Time Used: ', app_end_time - app_start_time
-        # print MPI.COMM_WORLD.Get_rank();
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
+
         if (self.__MPIInfo['MPI_Rank'] != 0):
             UpdateVertexThread.stop(-1)
         else:
             TaskSchedulerThread.stop(0)
-            sleep(0.1)
+            sleep(1)
             UpdateVertexThread.stop(0)
         BroadVertexThread.stop()
         BroadVertexThread.join()
