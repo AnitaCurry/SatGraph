@@ -629,13 +629,13 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 20
     #
-    # DataPath = '/home/mapred/GraphData/uk/subdata/'
-    # VertexNum = 787803000
-    # PartitionNum = 3000
+    DataPath = '/home/mapred/GraphData/uk/subdata/'
+    VertexNum = 787803000
+    PartitionNum = 3000
 
-    DataPath = '/home/mapred/GraphData/twitter/subdata/'
-    VertexNum = 41652250
-    PartitionNum = 50
+    # DataPath = '/home/mapred/GraphData/twitter/subdata/'
+    # VertexNum = 41652250
+    # PartitionNum = 50
 
     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
     test_graph = satgraph()
@@ -651,7 +651,7 @@ if __name__ == '__main__':
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(1)
+    test_graph.set_StaleNum(2)
     test_graph.set_FilterThreshold(0.000000001)
     test_graph.set_CalcFunc(calc_pagerank)
 
