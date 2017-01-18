@@ -3,6 +3,7 @@ Created on 14 Apr 2016
 
 @author: sunshine
 '''
+import os
 import time
 import numpy as np
 import scipy.sparse as sparse
@@ -292,7 +293,7 @@ class CalcThread(threading.Thread):
             i = int(message)
             UpdatedVertex = \
                 self.__ControlInfo['CalcFunc'](i,
-                                               self.__ControlInfo['IterationNum']
+                                               self.__ControlInfo['IterationNum'],
                                                self.__DataInfo,
                                                self.__GraphInfo,
                                                self.__Dtype_All)
