@@ -157,7 +157,7 @@ class BroadThread(threading.Thread):
             self.__ControlInfo['IterationReport'][i] + 1
 
     def broadcast_process(self):
-        Str_UpdatedVertex = broadcast()
+        Str_UpdatedVertex = self.broadcast()
         if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
             return -1
         Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
@@ -169,9 +169,9 @@ class BroadThread(threading.Thread):
             self.__GraphInfo['VertexPerPartition']
 
         if not BSP:
-            update_SSP(updated_vertex, start_id, end_id)
+            self.update_SSP(updated_vertex, start_id, end_id)
         else:
-            update_BSP(updated_vertex, start_id, end_id)
+            self.update_BSP(updated_vertex, start_id, end_id)
         return 1
 
     def run(self):
