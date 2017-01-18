@@ -86,29 +86,37 @@ def calc_pagerank(PartitionID,
     ActiveVertexID = np.where(DataInfo['VertexVersion']>=IterationNum)[0]
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     if not PARTIALCOMP:
-        if len(ActiveVertexID)*1.0/len(DataInfo['VertexData']) < 1:
+        if len(ActiveVertexID)*1.0/GraphMatrix.shape[1] <= 1:
             PARTIALCOMP = True
     # if MPI.COMM_WORLD.Get_rank() == 0:
-    #     print IterationNum, ' # ', len(ActiveVertexID);
+    #     print IterationNum, ' # ', len(ActiveVertexID)*1.0/GraphMatrix.shape[1];
     if PARTIALCOMP:
-        ActiveVertex = np.zeros(GraphMatrix.shape[1],
-                                dtype=Dtype_All['VertexData'])
-        UpdatedVertex = np.zeros(GraphMatrix.shape[0],
-                                dtype=Dtype_All['VertexData'])
-        ActiveVertex[ActiveVertexID] = DataInfo['VertexData'][ActiveVertexID]
+        start_id = PartitionID * GraphInfo['VertexPerPartition']
+        end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
+        # ActiveVertex = np.zeros(GraphMatrix.shape[1], dtype=Dtype_All['VertexData'])
+        ActiveVertex = np.zeros(GraphMatrix.shape[1], dtype=np.bool)
+        UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
+        # ActiveVertex[ActiveVertexID] = DataInfo['VertexData'][ActiveVertexID]
+        ActiveVertex[ActiveVertexID] = True
         TmpRowData = GraphMatrix.dot(ActiveVertex)
-        ActiveRowID = np.where(TmpRowData>0)[0]
-        if MPI.COMM_WORLD.Get_rank() == 0:
-            print IterationNum, ' # ', len(ActiveRowID)*1.0/GraphMatrix.shape[0];
-
+        TmpRowData = TmpRowData.astype(np.bool)
+        ActiveRowID = np.where(TmpRowData == True)[0]
+        # if MPI.COMM_WORLD.Get_rank() == 0:
+        #     print IterationNum, ' # ', len(ActiveRowID)*1.0/GraphMatrix.shape[0];
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex[ActiveRowID] = \
             GraphMatrix[ActiveRowID].dot(NormlizedVertex) * 0.85
         UpdatedVertex[ActiveRowID] = \
             UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+        #
+        # NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
+        # UpdatedVertex = \
+        #     GraphMatrix.dot(NormlizedVertex) * 0.85
+        # UpdatedVertex = \
+        #     UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+        #
         UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
         return UpdatedVertex
-
     else:
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
@@ -627,7 +635,7 @@ class satgraph():
                 diff_vertex = 10000 * \
                     LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                 print end_time - start_time, ' # Iter: ', \
-                    CurrentIteration, '->', diff_vertex
+                    CurrentIteration, '->', PARTIALCOMP, diff_vertex
                 Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                 start_time = time.time()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
