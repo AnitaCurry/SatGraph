@@ -527,18 +527,7 @@ class satgraph():
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
-    def run(self, InitialVertex='zero'):
-        self.__MPI_Initial()
-        self.__DataInfo['VertexOut'] = \
-            load_vertexout(self.__GraphInfo, self.__Dtype_All)
-
-        self.__DataInfo['VertexData'] = \
-            intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)
-
-        if BSP:
-            self.__DataInfo['VertexDataNew'] = \
-                intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)
-
+    def create_threads(self):
         UpdateVertexThread = \
             UpdateThread(self.__IP,
                          self.__UpdatePort,
@@ -567,15 +556,55 @@ class satgraph():
 
         TaskThreadPool = []
         for i in range(self.__ThreadNum):
-            new_thead = \
+            new_task_thead = \
                 CalcThread(self.__DataInfo,
                            self.__GraphInfo,
                            self.__ControlInfo,
                            self.__IP,
                            self.__TaskqPort,
                            self.__Dtype_All)
-            TaskThreadPool.append(new_thead)
-            new_thead.start()
+            TaskThreadPool.append(new_task_thead)
+            new_task_thead.start()
+        return UpdateVertexThread, \
+            TaskSchedulerThread, \
+            BroadVertexThread, \
+            TaskThreadPool
+
+    def destroy_threads(self,
+                        UpdateVertexThread,
+                        TaskSchedulerThread,
+                        BroadVertexThread,
+                        TaskThreadPool):
+        for i in range(self.__ThreadNum):
+            TaskThreadPool[i].stop()
+        if (self.__MPIInfo['MPI_Rank'] != 0):
+            UpdateVertexThread.stop(-1)
+        else:
+            TaskSchedulerThread.stop(0)
+            sleep(1)
+            UpdateVertexThread.stop(0)
+        BroadVertexThread.stop()
+        BroadVertexThread.join()
+        UpdateVertexThread.join()
+        if self.__MPIInfo['MPI_Rank'] == 0:
+            TaskSchedulerThread.join()
+
+    def run(self, InitialVertex='zero'):
+        self.__MPI_Initial()
+        self.__DataInfo['VertexOut'] = \
+            load_vertexout(self.__GraphInfo, self.__Dtype_All)
+        self.__DataInfo['VertexData'] = \
+            intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)
+        if BSP:
+            self.__DataInfo['VertexDataNew'] = \
+                intial_vertex(self.__GraphInfo,
+                              self.__Dtype_All,
+                              InitialVertex)
+
+        UpdateVertexThread, \
+            TaskSchedulerThread, \
+            BroadVertexThread, \
+            TaskThreadPool = self.create_threads()
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
@@ -599,24 +628,10 @@ class satgraph():
             app_end_time = time.time()
             print 'Time Used: ', app_end_time - app_start_time
 
-        for i in range(self.__ThreadNum):
-            TaskThreadPool[i].stop()
-
-        if (self.__MPIInfo['MPI_Rank'] != 0):
-            UpdateVertexThread.stop(-1)
-        else:
-            TaskSchedulerThread.stop(0)
-            sleep(1)
-            UpdateVertexThread.stop(0)
-
-        BroadVertexThread.stop()
-
-        BroadVertexThread.join()
-        # print "BroadVertexThread->", self.__MPIInfo['MPI_Rank']
-        UpdateVertexThread.join()
-        # print "UpdateVertexThread->", self.__MPIInfo['MPI_Rank']
-        if self.__MPIInfo['MPI_Rank'] == 0:
-            TaskSchedulerThread.join()
+        self.destroy_threads(UpdateVertexThread,
+                             TaskSchedulerThread,
+                             BroadVertexThread,
+                             TaskThreadPool)
 
 
 if __name__ == '__main__':
