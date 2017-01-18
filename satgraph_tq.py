@@ -175,8 +175,7 @@ class BroadThread(threading.Thread):
 
     def run(self):
         while True:
-            if not self.broadcast_process():
-                print "###############################"
+            if self.broadcast_process() == -1:
                 break
 
 
@@ -284,8 +283,7 @@ class CalcThread(threading.Thread):
 
     def run(self):
         while True:
-            if not self.sync():
-                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+            if self.sync() == -1:
                 break
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
@@ -294,7 +292,7 @@ class CalcThread(threading.Thread):
             socket.send(TaskRequest)
             message = socket.recv()
             if message == '-1':
-                sleep(1)
+                sleep(0.5)
                 continue
 
             i = int(message)
@@ -610,11 +608,13 @@ class satgraph():
             TaskSchedulerThread.stop(0)
             sleep(1)
             UpdateVertexThread.stop(0)
+
         BroadVertexThread.stop()
+
         BroadVertexThread.join()
-        print "BroadVertexThread->", self.__MPIInfo['MPI_Rank']
+        # print "BroadVertexThread->", self.__MPIInfo['MPI_Rank']
         UpdateVertexThread.join()
-        print "UpdateVertexThread->", self.__MPIInfo['MPI_Rank']
+        # print "UpdateVertexThread->", self.__MPIInfo['MPI_Rank']
         if self.__MPIInfo['MPI_Rank'] == 0:
             TaskSchedulerThread.join()
 
@@ -650,7 +650,7 @@ if __name__ == '__main__':
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(4)
-    test_graph.set_MaxIteration(5)
+    test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(1)
     test_graph.set_FilterThreshold(0.000000001)
     test_graph.set_CalcFunc(calc_pagerank)
