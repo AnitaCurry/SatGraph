@@ -81,11 +81,11 @@ def calc_pagerank(PartitionID,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
-    # ActiveVertexID = None
-    global PARTIALCOMP
-    ActiveVertexID = np.where(DataInfo['VertexVersion']>=IterationNum)[0]
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
-    if not PARTIALCOMP:
+    global PARTIALCOMP
+    if IterationNum > 10:
+        ActiveVertexID = np.where(DataInfo['VertexVersion']>=IterationNum)[0]
+    if PARTIALCOMP == False and IterationNum > 10:
         if len(ActiveVertexID)*1.0/GraphMatrix.shape[1] <= 0.001:
             PARTIALCOMP = True
     # if MPI.COMM_WORLD.Get_rank() == 0:
@@ -659,13 +659,13 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 20
     #
-    # DataPath = '/home/mapred/GraphData/uk/subdata/'
-    # VertexNum = 787803000
-    # PartitionNum = 3000
+    DataPath = '/home/mapred/GraphData/uk/subdata/'
+    VertexNum = 787803000
+    PartitionNum = 3000
 
-    DataPath = '/home/mapred/GraphData/twitter/subdata/'
-    VertexNum = 41652250
-    PartitionNum = 50
+    # DataPath = '/home/mapred/GraphData/twitter/subdata/'
+    # VertexNum = 41652250
+    # PartitionNum = 50
 
     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
     test_graph = satgraph()
@@ -680,7 +680,7 @@ if __name__ == '__main__':
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(4)
-    test_graph.set_MaxIteration(50)
+    test_graph.set_MaxIteration(100)
     test_graph.set_StaleNum(3)
     # test_graph.set_FilterThreshold(0.000000001)
     test_graph.set_FilterThreshold(0.00000001)
