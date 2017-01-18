@@ -129,8 +129,7 @@ class BroadThread(threading.Thread):
             Str_UpdatedVertex = QueueUpdatedVertex.get()
         else:
             Str_UpdatedVertex = None
-        return self.__MPIInfo['MPI_Comm'].bcast(Str_UpdatedVertex,
-                                                root=0)
+        return self.__MPIInfo['MPI_Comm'].bcast(Str_UpdatedVertex, root=0)
 
     def update_BSP(self, updated_vertex, start_id, end_id):
         new_vertex = updated_vertex[0:-1] + \
@@ -177,6 +176,7 @@ class BroadThread(threading.Thread):
     def run(self):
         while True:
             if not self.broadcast_process():
+                print "###############################"
                 break
 
 
@@ -598,8 +598,8 @@ class satgraph():
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             app_end_time = time.time()
-            print 'Time: ', app_end_time - app_start_time
-        print MPI.COMM_WORLD.Get_rank();
+            print 'Time Used: ', app_end_time - app_start_time
+        # print MPI.COMM_WORLD.Get_rank();
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
