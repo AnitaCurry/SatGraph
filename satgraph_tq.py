@@ -581,6 +581,7 @@ class satgraph():
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
             start_time = time.time()
+            app_start_time = time.time()
 
         while True:
             NewIteration, CurrentIteration = self.graph_process()
@@ -594,6 +595,11 @@ class satgraph():
                 start_time = time.time()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
                 break
+
+        if self.__MPIInfo['MPI_Rank'] == 0:
+            app_end_time = time.time()
+            print 'Time: ', app_end_time - app_start_time
+        print MPI.COMM_WORLD.Get_rank();
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
