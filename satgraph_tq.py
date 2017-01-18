@@ -528,22 +528,17 @@ class satgraph():
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
-    def run(self, Str_InitialVertex='zero'):
+    def run(self, InitialVertex='zero'):
         self.__MPI_Initial()
         self.__DataInfo['VertexOut'] = \
-            load_vertexout(self.__GraphInfo,
-                           self.__Dtype_All)
-        # Initial the vertex data
+            load_vertexout(self.__GraphInfo, self.__Dtype_All)
+
         self.__DataInfo['VertexData'] = \
-            intial_vertex(self.__GraphInfo,
-                          self.__Dtype_All,
-                          Str_InitialVertex)
+            intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)
 
         if BSP:
             self.__DataInfo['VertexDataNew'] = \
-                intial_vertex(self.__GraphInfo,
-                              self.__Dtype_All,
-                              Str_InitialVertex)
+                intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)
 
         UpdateVertexThread = \
             UpdateThread(self.__IP,
@@ -555,13 +550,12 @@ class satgraph():
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             TaskSchedulerThread = \
-                SchedulerThread(
-                    self.__IP,
-                    self.__TaskqPort,
-                    self.__MPIInfo,
-                    self.__GraphInfo,
-                    self.__ControlInfo,
-                    self.__Dtype_All)
+                SchedulerThread(self.__IP,
+                                self.__TaskqPort,
+                                self.__MPIInfo,
+                                self.__GraphInfo,
+                                self.__ControlInfo,
+                                self.__Dtype_All)
             TaskSchedulerThread.start()
 
         BroadVertexThread = \
@@ -624,13 +618,13 @@ if __name__ == '__main__':
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
-    #DataPath = '/home/mapred/GraphData/wiki/subdata/'
-    #VertexNum = 4206800
-    #PartitionNum = 20
-
-    #DataPath = '/home/mapred/GraphData/uk/subdata/'
-    #VertexNum = 787803000
-    #PartitionNum = 3000
+    # DataPath = '/home/mapred/GraphData/wiki/subdata/'
+    # VertexNum = 4206800
+    # PartitionNum = 20
+    #
+    # DataPath = '/home/mapred/GraphData/uk/subdata/'
+    # VertexNum = 787803000
+    # PartitionNum = 3000
 
     DataPath = '/home/mapred/GraphData/twitter/subdata/'
     VertexNum = 41652250
@@ -648,7 +642,6 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    # test_graph.set_ThreadNum(1)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(2)
