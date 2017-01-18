@@ -40,7 +40,6 @@ def intial_vertex(GraphInfo,
         return np.ones(GraphInfo['VertexNum'],
                        dtype=Dtype_All[0])
 
-
 def load_edgedata(PartitionID,
                   GraphInfo,
                   Dtype_All):
@@ -61,7 +60,6 @@ def load_edgedata(PartitionID,
     _file.close()
     return mat_data
 
-
 def load_vertexin(GraphInfo,
                   Dtype_All):
     _file = open(GraphInfo['DataPath'] + 'vertexin', 'r')
@@ -69,14 +67,12 @@ def load_vertexin(GraphInfo,
     _file.close()
     return temp
 
-
 def load_vertexout(GraphInfo,
                    Dtype_All):
     _file = open(GraphInfo['DataPath'] + 'vertexout', 'r')
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     _file.close()
     return temp
-
 
 def calc_pagerank(PartitionID,
                   DataInfo,
@@ -88,7 +84,6 @@ def calc_pagerank(PartitionID,
     UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex
-
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
@@ -127,7 +122,7 @@ class BroadThread(threading.Thread):
         new_vertex = updated_vertex[0:-1] + \
             self.__DataInfo['VertexData'][start_id:end_id]
         self.__DataInfo['VertexDataNew'][start_id:end_id] = new_vertex
-
+        # update vertex data
         i = int(updated_vertex[-1])
         self.__ControlInfo['IterationReport'][i] = \
             self.__ControlInfo['IterationReport'][i] + 1
@@ -137,15 +132,24 @@ class BroadThread(threading.Thread):
                 break
             else:
                 time.sleep(0.1)
+        # update vertex version number
+        version_num = self.__ControlInfo['IterationReport'][i]
+        non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
+        self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def update_SSP(self, updated_vertex, start_id, end_id):
         new_vertex = updated_vertex[0:-1] + \
             self.__DataInfo['VertexData'][start_id:end_id]
         self.__DataInfo['VertexData'][start_id:end_id] = new_vertex
-
+        # update vertex data
         i = int(updated_vertex[-1])
         self.__ControlInfo['IterationReport'][i] = \
             self.__ControlInfo['IterationReport'][i] + 1
+        # update vertex version number
+        version_num = self.__ControlInfo['IterationReport'][i]
+        non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
+        self.__DataInfo['VertexVersion'][non_zero_id] = version_num
+        print len(non_zero_id)
 
     def broadcast_process(self):
         Str_UpdatedVertex = self.broadcast()
@@ -169,7 +173,6 @@ class BroadThread(threading.Thread):
         while True:
             if self.broadcast_process() == -1:
                 break
-
 
 class UpdateThread(threading.Thread):
     __MPIInfo = {}
@@ -215,7 +218,6 @@ class UpdateThread(threading.Thread):
                 string_receive = socket.recv()
                 QueueUpdatedVertex.put(string_receive)
                 socket.send("ACK")
-                #                 print len(string_receive)
                 if len(string_receive) == 4 and string_receive == 'exit':
                     break
         else:
@@ -231,7 +233,6 @@ class UpdateThread(threading.Thread):
                 socket.send(Str_UpdatedVertex)
                 socket.recv()
 
-
 class CalcThread(threading.Thread):
     __GraphInfo = {}
     __Dtype_All = {}
@@ -239,8 +240,6 @@ class CalcThread(threading.Thread):
     __DataInfo = None
     __IP = None
     __Port = None
-    # __PendingTaskQueue = None
-    # __RunningFlag = False
     __stop = threading.Event()
 
     def stop(self):
@@ -312,7 +311,6 @@ class CalcThread(threading.Thread):
             Str_UpdatedData = Tmp_UpdatedData.tostring()
             Str_UpdatedData = snappy.compress(Str_UpdatedData)
             QueueUpdatedVertex.put(Str_UpdatedData)
-
 
 class SchedulerThread(threading.Thread):
     __MPIInfo = {}
@@ -387,7 +385,6 @@ class SchedulerThread(threading.Thread):
             else:
                 socket.send("-1")
 
-
 class satgraph():
     __Dtype_All = {}
     __GraphInfo = {}
@@ -421,6 +418,7 @@ class satgraph():
         self.__DataInfo['VertexOut'] = None
         self.__DataInfo['VertexIn'] = None
         self.__DataInfo['VertexData'] = None
+        self.__DataInfo['VertexVersion'] = None
         if BSP:
             self.__DataInfo['VertexDataNew'] = None
 
@@ -459,6 +457,8 @@ class satgraph():
         self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition
         self.__ControlInfo['IterationReport'] = np.zeros(
             self.__GraphInfo['PartitionNum'], dtype=np.int32)
+        self.__DataInfo['VertexVersion'] = np.zeros(
+            self.__GraphInfo['VertexNum'], dtype=np.int32)
 
     def set_Dtype_All(self, Dtype_All):
         self.__Dtype_All['VertexData'] = Dtype_All[0]
