@@ -75,9 +75,13 @@ def load_vertexout(GraphInfo,
     return temp
 
 def calc_pagerank(PartitionID,
+                  IterationNum,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
+    ActiveVertexID = np.where(DataInfo['VertexVersion']>=IterationNum)[0]
+    if MPI.COMM_WORLD.Get_rank() == 0:
+        print IterationNum, ' # ', len(ActiveVertexID);
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
     UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
@@ -149,7 +153,6 @@ class BroadThread(threading.Thread):
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
-        print len(non_zero_id)
 
     def broadcast_process(self):
         Str_UpdatedVertex = self.broadcast()
@@ -289,6 +292,7 @@ class CalcThread(threading.Thread):
             i = int(message)
             UpdatedVertex = \
                 self.__ControlInfo['CalcFunc'](i,
+                                               self.__ControlInfo['IterationNum']
                                                self.__DataInfo,
                                                self.__GraphInfo,
                                                self.__Dtype_All)
