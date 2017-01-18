@@ -584,8 +584,6 @@ class satgraph():
 
         while True:
             NewIteration, CurrentIteration = self.graph_process()
-            if CurrentIteration == self.__ControlInfo['MaxIteration']:
-                break
             if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
                 end_time = time.time()
                 diff_vertex = 10000 * \
@@ -594,6 +592,8 @@ class satgraph():
                     CurrentIteration, '->', diff_vertex
                 Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                 start_time = time.time()
+            if CurrentIteration == self.__ControlInfo['MaxIteration']:
+                break
 
         for i in range(self.__ThreadNum):
             TaskThreadPool[i].stop()
