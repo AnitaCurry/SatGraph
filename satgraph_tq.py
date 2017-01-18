@@ -99,7 +99,7 @@ def calc_pagerank(PartitionID,
         TmpRowData = GraphMatrix.dot(ActiveVertex)
         ActiveRowID = np.where(TmpRowData>0)[0]
         if MPI.COMM_WORLD.Get_rank() == 0:
-            print IterationNum, ' # ', len(ActiveRowID);
+            print IterationNum, ' # ', len(ActiveRowID)*1.0/GraphMatrix.shape[0];
 
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex[ActiveRowID] = \
