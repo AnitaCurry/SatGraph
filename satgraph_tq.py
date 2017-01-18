@@ -3,27 +3,19 @@ Created on 14 Apr 2016
 
 @author: sunshine
 '''
-import os
 import time
-import sys
 import numpy as np
 import scipy.sparse as sparse
 from mpi4py import MPI
-import shutil
-import math
 import threading
 import Queue
 import zmq
-from time import sleep
 import snappy
-from Cython.Plex.Regexps import Empty
 from numpy import linalg as LA
-import pandas as pd
 
 QueueUpdatedVertex = Queue.Queue()
 # BSP = True
 BSP = False
-
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -144,7 +136,7 @@ class BroadThread(threading.Thread):
                     self.__ControlInfo['IterationReport'].min():
                 break
             else:
-                sleep(0.1)
+                time.sleep(0.1)
 
     def update_SSP(self, updated_vertex, start_id, end_id):
         new_vertex = updated_vertex[0:-1] + \
@@ -278,7 +270,7 @@ class CalcThread(threading.Thread):
                         self.__ControlInfo['IterationReport'].min():
                     break
                 else:
-                    sleep(0.1)
+                    time.sleep(0.1)
         return 1
 
     def run(self):
@@ -292,7 +284,7 @@ class CalcThread(threading.Thread):
             socket.send(TaskRequest)
             message = socket.recv()
             if message == '-1':
-                sleep(0.5)
+                time.sleep(0.5)
                 continue
 
             i = int(message)
@@ -516,7 +508,7 @@ class satgraph():
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
     def graph_process(self):
-        sleep(0.1)
+        time.sleep(0.1)
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
         NewIteration = False
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
@@ -570,7 +562,7 @@ class satgraph():
             UpdateVertexThread.stop(-1)
         else:
             TaskSchedulerThread.stop(0)
-            sleep(1)
+            time.sleep(1)
             UpdateVertexThread.stop(0)
         BroadVertexThread.stop()
         BroadVertexThread.join()
