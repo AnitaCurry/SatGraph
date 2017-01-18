@@ -21,7 +21,7 @@ from numpy import linalg as LA
 import pandas as pd
 
 QueueUpdatedVertex = Queue.Queue()
-#BSP = True
+# BSP = True
 BSP = False
 
 
@@ -529,47 +529,35 @@ class satgraph():
 
     def create_threads(self):
         UpdateVertexThread = \
-            UpdateThread(self.__IP,
-                         self.__UpdatePort,
-                         self.__MPIInfo,
-                         self.__GraphInfo,
+            UpdateThread(self.__IP, self.__UpdatePort,
+                         self.__MPIInfo, self.__GraphInfo,
                          self.__Dtype_All)
         UpdateVertexThread.start()
 
         TaskSchedulerThread = None
         if self.__MPIInfo['MPI_Rank'] == 0:
             TaskSchedulerThread = \
-                SchedulerThread(self.__IP,
-                                self.__TaskqPort,
-                                self.__MPIInfo,
-                                self.__GraphInfo,
-                                self.__ControlInfo,
-                                self.__Dtype_All)
+                SchedulerThread(self.__IP, self.__TaskqPort,
+                                self.__MPIInfo, self.__GraphInfo,
+                                self.__ControlInfo, self.__Dtype_All)
             TaskSchedulerThread.start()
 
         BroadVertexThread = \
-            BroadThread(self.__MPIInfo,
-                        self.__DataInfo,
-                        self.__ControlInfo,
-                        self.__GraphInfo,
+            BroadThread(self.__MPIInfo, self.__DataInfo,
+                        self.__ControlInfo, self.__GraphInfo,
                         self.__Dtype_All)
         BroadVertexThread.start()
 
         TaskThreadPool = []
         for i in range(self.__ThreadNum):
             new_task_thead = \
-                CalcThread(self.__DataInfo,
-                           self.__GraphInfo,
-                           self.__ControlInfo,
-                           self.__IP,
-                           self.__TaskqPort,
-                           self.__Dtype_All)
+                CalcThread(self.__DataInfo, self.__GraphInfo,
+                           self.__ControlInfo, self.__IP,
+                           self.__TaskqPort, self.__Dtype_All)
             TaskThreadPool.append(new_task_thead)
             new_task_thead.start()
-        return UpdateVertexThread, \
-            TaskSchedulerThread, \
-            BroadVertexThread, \
-            TaskThreadPool
+        return UpdateVertexThread, TaskSchedulerThread, \
+            BroadVertexThread, TaskThreadPool
 
     def destroy_threads(self,
                         UpdateVertexThread,
@@ -599,13 +587,10 @@ class satgraph():
         if BSP:
             self.__DataInfo['VertexDataNew'] = \
                 intial_vertex(self.__GraphInfo,
-                              self.__Dtype_All,
-                              InitialVertex)
+                              self.__Dtype_All, InitialVertex)
 
-        UpdateVertexThread, \
-            TaskSchedulerThread, \
-            BroadVertexThread, \
-            TaskThreadPool = self.create_threads()
+        UpdateVertexThread, TaskSchedulerThread, \
+            BroadVertexThread, TaskThreadPool = self.create_threads()
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
@@ -629,11 +614,8 @@ class satgraph():
             app_end_time = time.time()
             print 'Time Used: ', app_end_time - app_start_time
 
-        self.destroy_threads(UpdateVertexThread,
-                             TaskSchedulerThread,
-                             BroadVertexThread,
-                             TaskThreadPool)
-
+        self.destroy_threads(UpdateVertexThread, TaskSchedulerThread,
+                             BroadVertexThread, TaskThreadPool)
 
 if __name__ == '__main__':
     Dtype_VertexData = np.float32
