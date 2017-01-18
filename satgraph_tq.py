@@ -81,34 +81,32 @@ def calc_pagerank(PartitionID,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
-    GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     global PARTIALCOMP
-    if IterationNum > 10:
-        ActiveVertexID = np.where(DataInfo['VertexVersion']>=IterationNum)[0]
-    if PARTIALCOMP == False and IterationNum > 10:
-        if len(ActiveVertexID)*1.0/GraphMatrix.shape[1] <= 0.001:
+    GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
+    ActiveVertex = DataInfo['VertexVersion'] >= IterationNum
+
+    if PARTIALCOMP == False: # and IterationNum > 10:
+        if ActiveVertex.sum()*1.0/GraphMatrix.shape[1] <= 0.01:
             PARTIALCOMP = True
     # if MPI.COMM_WORLD.Get_rank() == 0:
-    #     print IterationNum, ' # ', len(ActiveVertexID)*1.0/GraphMatrix.shape[1];
+    #     print IterationNum, ' # ', ActiveVertex.sum()*1.0/GraphMatrix.shape[1];
     if PARTIALCOMP:
         start_id = PartitionID * GraphInfo['VertexPerPartition']
         end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
-        ActiveVertex = np.zeros(GraphMatrix.shape[1], dtype=np.bool)
         UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
-        # ActiveVertex[ActiveVertexID] = DataInfo['VertexData'][ActiveVertexID]
-        ActiveVertex[ActiveVertexID] = True
-        TmpRowData = GraphMatrix.dot(ActiveVertex)
-        TmpRowData = TmpRowData.astype(np.bool)
-        ActiveRowID = np.where(TmpRowData == True)[0]
-        if len(ActiveRowID) == 0:
+
+        ActiveMatrix = GraphMatrix[:,np.where(ActiveVertex==True)]
+        ActiveRow = np.diff(ActiveMatrix.indptr)
+        ActiveRow = np.where(ActiveRow>0)
+        if len(ActiveRow) == 0:
             return UpdatedVertex
         # if MPI.COMM_WORLD.Get_rank() == 0:
-        #     print IterationNum, ' # ', len(ActiveRowID)*1.0/GraphMatrix.shape[0];
+        #     print IterationNum, ' # ', len(ActiveRow)*1.0/GraphMatrix.shape[0];
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-        UpdatedVertex[ActiveRowID] = \
-            GraphMatrix[ActiveRowID].dot(NormlizedVertex) * 0.85
-        UpdatedVertex[ActiveRowID] = \
-            UpdatedVertex[ActiveRowID] + 1.0 / GraphInfo['VertexNum']
+        UpdatedVertex[ActiveRow] = \
+            GraphMatrix[ActiveRow].dot(NormlizedVertex) * 0.85
+        UpdatedVertex[ActiveRow] = \
+            UpdatedVertex[ActiveRow] + 1.0 / GraphInfo['VertexNum']
         #
         # NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         # UpdatedVertex = \
@@ -659,13 +657,13 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 20
     #
-    DataPath = '/home/mapred/GraphData/uk/subdata/'
-    VertexNum = 787803000
-    PartitionNum = 3000
+    # DataPath = '/home/mapred/GraphData/uk/subdata/'
+    # VertexNum = 787803000
+    # PartitionNum = 3000
 
-    # DataPath = '/home/mapred/GraphData/twitter/subdata/'
-    # VertexNum = 41652250
-    # PartitionNum = 50
+    DataPath = '/home/mapred/GraphData/twitter/subdata/'
+    VertexNum = 41652250
+    PartitionNum = 50
 
     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
     test_graph = satgraph()
