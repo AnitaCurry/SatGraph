@@ -536,6 +536,7 @@ class satgraph():
                          self.__Dtype_All)
         UpdateVertexThread.start()
 
+        TaskSchedulerThread = None
         if self.__MPIInfo['MPI_Rank'] == 0:
             TaskSchedulerThread = \
                 SchedulerThread(self.__IP,
@@ -640,13 +641,13 @@ if __name__ == '__main__':
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
-    # DataPath = '/home/mapred/GraphData/wiki/subdata/'
-    # VertexNum = 4206800
-    # PartitionNum = 20
+    DataPath = '/home/mapred/GraphData/wiki/subdata/'
+    VertexNum = 4206800
+    PartitionNum = 20
     #
-    DataPath = '/home/mapred/GraphData/uk/subdata/'
-    VertexNum = 787803000
-    PartitionNum = 3000
+    # DataPath = '/home/mapred/GraphData/uk/subdata/'
+    # VertexNum = 787803000
+    # PartitionNum = 3000
 
     # DataPath = '/home/mapred/GraphData/twitter/subdata/'
     # VertexNum = 41652250
@@ -666,7 +667,7 @@ if __name__ == '__main__':
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(2)
+    test_graph.set_StaleNum(1)
     test_graph.set_FilterThreshold(0.000000001)
     test_graph.set_CalcFunc(calc_pagerank)
 
