@@ -272,7 +272,7 @@ class CalcThread(threading.Thread):
 
     def sync(self):
         if self.__stop.is_set():
-            break
+            return -1
         if BSP:
             while True:
                 if self.__ControlInfo['IterationNum'] == \
@@ -280,10 +280,12 @@ class CalcThread(threading.Thread):
                     break
                 else:
                     sleep(0.1)
+        return 1
 
     def run(self):
         while True:
-            self.sync()
+            if not self.sync():
+                break
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
             socket.connect("tcp://%s:%s" % (self.__IP, self.__Port))
