@@ -17,7 +17,6 @@ from numpy import linalg as LA
 QueueUpdatedVertex = Queue.Queue()
 # BSP = True
 BSP = False
-PARTIALCOMP = False
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -76,44 +75,51 @@ def load_vertexout(GraphInfo,
     _file.close()
     return temp
 
+def csr_row_set_nz_to_zero(csr, row):
+    csr.data[csr.indptr[row]:csr.indptr[row+1]] = 0
+
+def csr_rows_set_nz_to_zero(csr, rows):
+    for row in rows:
+        csr_row_set_nz_to_zero(csr, row)
+    # csr.eliminate_zeros()
+
 def calc_pagerank(PartitionID,
                   IterationNum,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
-    global PARTIALCOMP
+    start_id = PartitionID * GraphInfo['VertexPerPartition']
+    end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
-    ActiveVertex = DataInfo['VertexVersion'] >= IterationNum
+    VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
 
-    if PARTIALCOMP == False: # and IterationNum > 10:
-        if ActiveVertex.sum()*1.0/GraphMatrix.shape[1] <= 0.01:
-            PARTIALCOMP = True
-    # if MPI.COMM_WORLD.Get_rank() == 0:
-    #     print IterationNum, ' # ', ActiveVertex.sum()*1.0/GraphMatrix.shape[1];
-    if PARTIALCOMP:
-        start_id = PartitionID * GraphInfo['VertexPerPartition']
-        end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
+    ActiveRow = np.where(VertexVersion >= (IterationNum-2))[0]
+    DeactiveRow = np.where(VertexVersion <  (IterationNum-2))[0]
+
+ #   if MPI.COMM_WORLD.Get_rank() == 0:
+ #       print len(ActiveRow)*1.0/GraphMatrix.shape[0]
+
+    if len(ActiveRow)*1.0/GraphMatrix.shape[0] <= 0.01:
         UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
-
-        ActiveMatrix = GraphMatrix[:,np.where(ActiveVertex==True)]
-        ActiveRow = np.diff(ActiveMatrix.indptr)
-        ActiveRow = np.where(ActiveRow>0)
         if len(ActiveRow) == 0:
+            UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
             return UpdatedVertex
-        # if MPI.COMM_WORLD.Get_rank() == 0:
-        #     print IterationNum, ' # ', len(ActiveRow)*1.0/GraphMatrix.shape[0];
+#########################################################################
+#        csr_rows_set_nz_to_zero(GraphMatrix, DeactiveRow)
+#        NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
+#        UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
+#        UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+#        UpdatedVertex[DeactiveRow] = \
+#            DataInfo['VertexData'][start_id:end_id][DeactiveRow].copy()
+#########################################################################
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-        UpdatedVertex[ActiveRow] = \
-            GraphMatrix[ActiveRow].dot(NormlizedVertex) * 0.85
+        for i in ActiveRow:   
+            UpdatedVertex[i] = GraphMatrix[i].dot(NormlizedVertex) * 0.85
+#        GraphMatrix = GraphMatrix[ActiveRow]
+#        UpdatedVertex[ActiveRow] = \
+#            GraphMatrix.dot(NormlizedVertex) * 0.85
         UpdatedVertex[ActiveRow] = \
             UpdatedVertex[ActiveRow] + 1.0 / GraphInfo['VertexNum']
-        #
-        # NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-        # UpdatedVertex = \
-        #     GraphMatrix.dot(NormlizedVertex) * 0.85
-        # UpdatedVertex = \
-        #     UpdatedVertex + 1.0 / GraphInfo['VertexNum']
-        #
         UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
         return UpdatedVertex
     else:
@@ -173,6 +179,7 @@ class BroadThread(threading.Thread):
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
+        non_zero_id = non_zero_id + start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def update_SSP(self, updated_vertex, start_id, end_id):
@@ -186,6 +193,7 @@ class BroadThread(threading.Thread):
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
+        non_zero_id = non_zero_id + start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def broadcast_process(self):
@@ -634,7 +642,7 @@ class satgraph():
                 diff_vertex = 10000 * \
                     LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                 print end_time - start_time, ' # Iter: ', \
-                    CurrentIteration, '->', PARTIALCOMP, diff_vertex
+                    CurrentIteration, '->', diff_vertex
                 Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                 start_time = time.time()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
@@ -657,13 +665,13 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 20
     #
-    # DataPath = '/home/mapred/GraphData/uk/subdata/'
-    # VertexNum = 787803000
-    # PartitionNum = 3000
+    DataPath = '/home/mapred/GraphData/uk/subdata/'
+    VertexNum = 787803000
+    PartitionNum = 3000
 
-    DataPath = '/home/mapred/GraphData/twitter/subdata/'
-    VertexNum = 41652250
-    PartitionNum = 50
+    # DataPath = '/home/mapred/GraphData/twitter/subdata/'
+    # VertexNum = 41652250
+    # PartitionNum = 50
 
     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
     test_graph = satgraph()
@@ -679,9 +687,9 @@ if __name__ == '__main__':
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(100)
-    test_graph.set_StaleNum(3)
-    # test_graph.set_FilterThreshold(0.000000001)
-    test_graph.set_FilterThreshold(0.00000001)
+    test_graph.set_StaleNum(1)
+    # test_graph.set_FilterThreshold(0)
+    test_graph.set_FilterThreshold(0.0000001)
     test_graph.set_CalcFunc(calc_pagerank)
 
     test_graph.run('pagerank')
