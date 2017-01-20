@@ -44,14 +44,15 @@ def intial_vertex(GraphInfo,
 def load_edgedata(PartitionID,
                   GraphInfo,
                   Dtype_All):
-    _file = open(GraphInfo['DataPath'] +
-                 str(PartitionID) +
-                 '.edge',
-                 'r')
-    temp = np.fromfile(_file,
-                       dtype=Dtype_All['VertexEdgeInfo'])
-    data = np.ones(temp[0],
-                   dtype=Dtype_All['EdgeData'])
+    edge_path_1 = GraphInfo['DataPath'] + str(PartitionID) + '.edge'
+    edge_path_2 = GraphInfo['DataPath'] + '/tmp/' + str(PartitionID) + '.edge'
+    if os.path.isfile(edge_path_2):
+        edge_path = edge_path_2
+    else:
+        edge_path = edge_path_1
+    _file = open(edge_path, 'r')
+    temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
+    data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
     indices = temp[3:3 + int(temp[1])]
     indptr = temp[3 + int(temp[1]):3 + int(temp[1]) + int(temp[2])]
 
@@ -60,6 +61,23 @@ def load_edgedata(PartitionID,
     mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
     _file.close()
     return mat_data
+
+def write_edgedata(PartitionID,
+                   Mat_EdgeData,
+                   GraphInfo,
+                   Dtype_All):
+    _file = open(GraphInfo['DataPath'] + '/tmp/' + str(PartitionID) + '.edge', 'w')
+    Partition_Indices = Mat_EdgeData.indices
+    Partition_Indptr = Mat_EdgeData.indptr
+    Len_Indices = len(Partition_Indices)
+    Len_Indptr = len(Partition_Indptr)
+    PartitionData = np.append(len(Mat_EdgeData.data), Len_Indices)
+    PartitionData = np.append(PartitionData, Len_Indptr)
+    PartitionData = np.append(PartitionData, Partition_Indices)
+    PartitionData = np.append(PartitionData, Partition_Indptr)
+    PartitionData = PartitionData.astype(Dtype_All[1])
+    PartitionData.tofile(_file)
+    _file.close()
 
 def load_vertexin(GraphInfo,
                   Dtype_All):
@@ -112,7 +130,7 @@ def calc_pagerank(PartitionID,
         UpdatedVertex[ActiveRow] + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex
-    
+
     # else:
     #     NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
     #     UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
@@ -703,6 +721,13 @@ if __name__ == '__main__':
     DataPath = '/home/mapred/GraphData/twitter/subdata/'
     VertexNum = 41652250
     PartitionNum = 50
+
+    if os.path.isfile(DataPath + '/tmp'):
+        os.remove(DataPath + '/tmp')
+    if os.path.isdir(DataPath + '/tmp'):
+        shutil.rmtree(DataPath + '/tmp')
+    os.makedirs(DataPath + '/tmp')
+    MPI.COMM_WORLD.Barrier()
 
     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
     test_graph = satgraph()
