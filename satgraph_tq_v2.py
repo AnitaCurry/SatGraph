@@ -65,7 +65,7 @@ def load_edgedata(PartitionID,
         encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
         mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
         _file.close()
-        return mat_data, range(encoded_shape[0])
+        rows = np.array(range(encoded_shape[0]), dtype=Dtype_All['VertexEdgeInfo'])
     else:
         _file = open(edge_path, 'r')
         temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
@@ -80,7 +80,7 @@ def load_edgedata(PartitionID,
         encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
         mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
         _file.close()
-        return mat_data, rows
+    return mat_data, rows
 
 def write_edgedata(PartitionID,
                    Mat_EdgeData,
@@ -143,7 +143,7 @@ def calc_pagerank(PartitionID,
         UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
         return UpdatedVertex
     NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-    UpdatedVertex[Rows] = EdgeMatrix.dot(NormlizedVertex[Rows]) * 0.85
+    UpdatedVertex[Rows] = EdgeMatrix.dot(NormlizedVertex) * 0.85
     UpdatedVertex[Rows] = UpdatedVertex[Rows] + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
 
