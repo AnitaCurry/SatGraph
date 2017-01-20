@@ -415,8 +415,6 @@ class SchedulerThread(threading.Thread):
                 LocalityInfo[rank][target_partition] = \
                     LocalityInfo[rank][target_partition] + 1
                 socket.send(str(target_partition))
-
-                print AllTask
         else:
             socket.send("-1")
 
@@ -429,7 +427,7 @@ class SchedulerThread(threading.Thread):
         AllTask = np.zeros(self.__GraphInfo['PartitionNum'], dtype=np.int32)
         AllProgress = self.__ControlInfo['IterationReport']
         LocalityInfo = {}
-        for i in MPI.COMM_WORLD.Get_size():
+        for i in range(MPI.COMM_WORLD.Get_size()):
             LocalityInfo[i] = np.zeros(self.__GraphInfo['PartitionNum'],
                                        dtype=np.int32)
 
@@ -440,6 +438,7 @@ class SchedulerThread(threading.Thread):
                 socket.send("-1")
                 break
             elif command == '1':  # get task
+                rank = int(rank)
                 self.assign_task(rank, LocalityInfo, AllTask, AllProgress, socket)
             else:
                 socket.send("-1")
@@ -698,7 +697,7 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(2)
+    test_graph.set_ThreadNum(8)
     test_graph.set_MaxIteration(100)
     test_graph.set_StaleNum(3)
     # test_graph.set_FilterThreshold(0)
