@@ -148,10 +148,10 @@ def calc_pagerank(PartitionID,
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
 
     # ParticialLevel =  DataInfo['ParticialReport'][PartitionID]
-    if len(ActiveVertex)*1.0/len(VertexVersion) < 0.02:
+    if len(ActiveVertex)*1.0/len(VertexVersion) < 0.1:
         ParticialLevel = 2
-    elif len(ActiveVertex)*1.0/len(VertexVersion) < 0.2:
-        ParticialLevel = 1
+    # elif len(ActiveVertex)*1.0/len(VertexVersion) < 0.2:
+    #     ParticialLevel = 1
     else:
         ParticialLevel = 0
     if DataInfo['ParticialReport'][PartitionID] < ParticialLevel:
