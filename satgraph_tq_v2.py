@@ -53,20 +53,38 @@ def load_edgedata(PartitionID,
         edge_path = edge_path_2
     else:
         edge_path = edge_path_1
-    _file = open(edge_path, 'r')
-    temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
-    data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
-    indices = temp[3:3 + int(temp[1])]
-    indptr = temp[3 + int(temp[1]):3 + int(temp[1]) + int(temp[2])]
 
-    encoded_data = (data, indices, indptr)
-    encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
-    mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
-    _file.close()
-    return mat_data
+    if edge_path == edge_path_1:
+        _file = open(edge_path, 'r')
+        temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
+        data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
+        indices = temp[3:3 + int(temp[1])]
+        indptr = temp[3 + int(temp[1]):3 + int(temp[1]) + int(temp[2])]
+
+        encoded_data = (data, indices, indptr)
+        encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
+        mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
+        _file.close()
+        return mat_data, range(encoded_shape[0])
+    else:
+        _file = open(edge_path, 'r')
+        temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
+        data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
+        indices = temp[4:4 + int(temp[1])]
+        indptr = temp[4 + int(temp[1]):\
+                      4 + int(temp[1]) + int(temp[2])]
+        rows = temp[4 + int(temp[1]) + int(temp[2]):\
+                    4 + int(temp[1]) + int(temp[2]) + int(temp[3])]
+
+        encoded_data = (data, indices, indptr)
+        encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
+        mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
+        _file.close()
+        return mat_data, rows
 
 def write_edgedata(PartitionID,
                    Mat_EdgeData,
+                   Rows,
                    GraphInfo,
                    Dtype_All):
     _file = open(GraphInfo['DataPath'] + \
@@ -78,8 +96,10 @@ def write_edgedata(PartitionID,
     Len_Indptr = len(Partition_Indptr)
     PartitionData = np.append(len(Mat_EdgeData.data), Len_Indices)
     PartitionData = np.append(PartitionData, Len_Indptr)
+    PartitionData = np.append(PartitionData, len(Rows))
     PartitionData = np.append(PartitionData, Partition_Indices)
     PartitionData = np.append(PartitionData, Partition_Indptr)
+    PartitionData = np.append(PartitionData, Rows)
     PartitionData = PartitionData.astype(Dtype_All[1])
     PartitionData.tofile(_file)
     _file.close()
@@ -114,25 +134,31 @@ def calc_pagerank(PartitionID,
                   Dtype_All):
     start_id = PartitionID * GraphInfo['VertexPerPartition']
     end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
-    GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
+    EdgeMatrix, Rows = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
-    ActiveRow = np.where(VertexVersion >= (IterationNum-3))[0]
-    DeactiveRow = np.where(VertexVersion <  (IterationNum-3))[0]
- #   if MPI.COMM_WORLD.Get_rank() == 0:
-    # print len(ActiveRow)*1.0/GraphMatrix.shape[0]
- #   if len(ActiveRow)*1.0/GraphMatrix.shape[0] <= 0.001:
-    if len(ActiveRow) == 0:
+    ActiveVertex = np.where(VertexVersion >= (IterationNum-3))[0]
+
+    UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
+    if len(ActiveVertex) == 0:
         UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
         return UpdatedVertex
     NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-    UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
-    UpdatedVertex[ActiveRow] = \
-        UpdatedVertex[ActiveRow] + 1.0 / GraphInfo['VertexNum']
-    UpdatedVertex[DeactiveRow] = \
-        DataInfo['VertexData'][start_id:end_id][DeactiveRow].copy()
+    UpdatedVertex[Rows] = EdgeMatrix.dot(NormlizedVertex[Rows]) * 0.85
+    UpdatedVertex[Rows] = UpdatedVertex[Rows] + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
 
     # ParticialLevel =  DataInfo['ParticialReport'][PartitionID]
+    if len(ActiveVertex)*1.0/len(VertexVersion) < 0.02:
+        ParticialLevel = 2
+    elif len(ActiveVertex)*1.0/len(VertexVersion) < 0.2:
+        ParticialLevel = 1
+    else:
+        ParticialLevel = 0
+    if DataInfo['ParticialReport'][PartitionID] < ParticialLevel:
+        EdgeMatrix = EdgeMatrix[ActiveVertex]
+        Rows = Rows[ActiveVertex]
+        write_edgedata(PartitionID, EdgeMatrix, Rows, GraphInfo, Dtype_All)
+        DataInfo['ParticialReport'][PartitionID] = ParticialLevel
 
     return UpdatedVertex
 
@@ -665,6 +691,9 @@ class satgraph():
                     CurrentIteration, '->', diff_vertex
                 Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                 start_time = time.time()
+
+            if diff_vertex == 0:
+                break
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
                 break
 
