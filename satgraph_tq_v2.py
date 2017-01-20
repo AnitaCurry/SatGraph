@@ -77,7 +77,7 @@ def load_edgedata(PartitionID,
                     4 + int(temp[1]) + int(temp[2]) + int(temp[3])]
 
         encoded_data = (data, indices, indptr)
-        encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
+        encoded_shape = (int(temp[3]), GraphInfo['VertexNum'])
         mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
         _file.close()
     return mat_data, rows
