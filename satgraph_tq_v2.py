@@ -691,9 +691,6 @@ class satgraph():
                     CurrentIteration, '->', diff_vertex
                 Old_Vertex_ = self.__DataInfo['VertexData'].copy()
                 start_time = time.time()
-
-            if diff_vertex == 0:
-                break
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
                 break
 
