@@ -46,7 +46,9 @@ def load_edgedata(PartitionID,
                   GraphInfo,
                   Dtype_All):
     edge_path_1 = GraphInfo['DataPath'] + str(PartitionID) + '.edge'
-    edge_path_2 = GraphInfo['DataPath'] + 'tmp/' + str(PartitionID) + '.edge'
+    edge_path_2 = GraphInfo['DataPath'] + \
+        'tmp/' + str(MPI.COMM_WORLD.Get_rank()) + '/' + \
+        str(PartitionID) + '.edge'
     if os.path.isfile(edge_path_2):
         edge_path = edge_path_2
     else:
@@ -67,7 +69,9 @@ def write_edgedata(PartitionID,
                    Mat_EdgeData,
                    GraphInfo,
                    Dtype_All):
-    _file = open(GraphInfo['DataPath'] + 'tmp/' + str(PartitionID) + '.edge', 'w')
+    _file = open(GraphInfo['DataPath'] + \
+                 'tmp/' + str(MPI.COMM_WORLD.Get_rank()) + '/' + \
+                 str(PartitionID) + '.edge', 'w')
     Partition_Indices = Mat_EdgeData.indices
     Partition_Indptr = Mat_EdgeData.indptr
     Len_Indices = len(Partition_Indices)
@@ -723,11 +727,11 @@ if __name__ == '__main__':
     VertexNum = 41652250
     PartitionNum = 50
 
-    if os.path.isfile(DataPath + 'tmp'):
-        os.remove(DataPath + 'tmp')
-    if os.path.isdir(DataPath + 'tmp'):
-        shutil.rmtree(DataPath + 'tmp')
-    os.makedirs(DataPath + 'tmp')
+    if os.path.isfile(DataPath + 'tmp/' + str(MPI.COMM_WORLD.Get_rank())):
+        os.remove(DataPath + 'tmp/' + str(MPI.COMM_WORLD.Get_rank()))
+    if os.path.isdir(DataPath + 'tmp/' + str(MPI.COMM_WORLD.Get_rank())):
+        shutil.rmtree(DataPath + 'tmp/' + str(MPI.COMM_WORLD.Get_rank()))
+    os.makedirs(DataPath + 'tmp/' + str(MPI.COMM_WORLD.Get_rank()))
     MPI.COMM_WORLD.Barrier()
 
     GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
