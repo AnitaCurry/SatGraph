@@ -116,16 +116,11 @@ def calc_pagerank(PartitionID,
     end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
     GraphMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
-
     ActiveRow = np.where(VertexVersion >= (IterationNum-3))[0]
     DeactiveRow = np.where(VertexVersion <  (IterationNum-3))[0]
-
  #   if MPI.COMM_WORLD.Get_rank() == 0:
     # print len(ActiveRow)*1.0/GraphMatrix.shape[0]
-
  #   if len(ActiveRow)*1.0/GraphMatrix.shape[0] <= 0.001:
-
-    UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
     if len(ActiveRow) == 0:
         UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
         return UpdatedVertex
@@ -133,45 +128,13 @@ def calc_pagerank(PartitionID,
     UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
     UpdatedVertex[ActiveRow] = \
         UpdatedVertex[ActiveRow] + 1.0 / GraphInfo['VertexNum']
+    UpdatedVertex[DeactiveRow] = \
+        DataInfo['VertexData'][start_id:end_id][DeactiveRow].copy()
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+
+    # ParticialLevel =  DataInfo['ParticialReport'][PartitionID]
+
     return UpdatedVertex
-
-    # else:
-    #     NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-    #     UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
-    #     UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
-    #     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-    #     return UpdatedVertex
-
-#     if len(ActiveRow)  <= 2000:
-#         UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
-#         if len(ActiveRow) == 0:
-#             UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
-#             return UpdatedVertex
-# #########################################################################
-# #        csr_rows_set_nz_to_zero(GraphMatrix, DeactiveRow)
-# #        NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-# #        UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
-# #        UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
-# #        UpdatedVertex[DeactiveRow] = \
-# #            DataInfo['VertexData'][start_id:end_id][DeactiveRow].copy()
-# #########################################################################
-#         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-#         for i in ActiveRow:
-#             UpdatedVertex[i] = GraphMatrix[i].dot(NormlizedVertex) * 0.85
-# #        GraphMatrix = GraphMatrix[ActiveRow]
-# #        UpdatedVertex[ActiveRow] = \
-# #            GraphMatrix.dot(NormlizedVertex) * 0.85
-#         UpdatedVertex[ActiveRow] = \
-#             UpdatedVertex[ActiveRow] + 1.0 / GraphInfo['VertexNum']
-#         UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-#         return UpdatedVertex
-#     else:
-#         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
-#         UpdatedVertex = GraphMatrix.dot(NormlizedVertex) * 0.85
-#         UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
-#         UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-#         return UpdatedVertex
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
@@ -519,6 +482,7 @@ class satgraph():
         self.__DataInfo['VertexIn'] = None
         self.__DataInfo['VertexData'] = None
         self.__DataInfo['VertexVersion'] = None
+        self.__DataInfo['ParticialReport'] = None
         if BSP:
             self.__DataInfo['VertexDataNew'] = None
 
@@ -556,6 +520,8 @@ class satgraph():
         self.__GraphInfo['PartitionNum'] = self.__PartitionNum
         self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition
         self.__ControlInfo['IterationReport'] = np.zeros(
+            self.__GraphInfo['PartitionNum'], dtype=np.int32)
+        self.__DataInfo['ParticialReport'] = np.zeros(
             self.__GraphInfo['PartitionNum'], dtype=np.int32)
         self.__DataInfo['VertexVersion'] = np.zeros(
             self.__GraphInfo['VertexNum'], dtype=np.int32)
