@@ -748,7 +748,7 @@ if __name__ == '__main__':
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(8)
     test_graph.set_MaxIteration(100)
-    test_graph.set_StaleNum(3)
+    test_graph.set_StaleNum(1)
     # test_graph.set_FilterThreshold(0)
     test_graph.set_FilterThreshold(0.00000001)
     test_graph.set_CalcFunc(calc_pagerank)
