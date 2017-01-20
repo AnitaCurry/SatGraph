@@ -100,7 +100,7 @@ def write_edgedata(PartitionID,
     PartitionData = np.append(PartitionData, Partition_Indices)
     PartitionData = np.append(PartitionData, Partition_Indptr)
     PartitionData = np.append(PartitionData, Rows)
-    PartitionData = PartitionData.astype(Dtype_All[1])
+    PartitionData = PartitionData.astype(Dtype_All['VertexEdgeInfo'])
     PartitionData.tofile(_file)
     _file.close()
 
