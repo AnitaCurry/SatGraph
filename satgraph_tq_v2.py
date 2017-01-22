@@ -136,19 +136,20 @@ def calc_pagerank(PartitionID,
     end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
     EdgeMatrix, Rows = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
-    ActiveVertex = np.where(VertexVersion >= (IterationNum-3))[0]
+    ActiveVertex = np.where(VertexVersion >= (IterationNum-5))[0]
+    ActiveVertex = np.intersect1d(ActiveVertex, Rows)
 
     UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
     if len(ActiveVertex) == 0:
-        UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
         return UpdatedVertex
+
     NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
     UpdatedVertex[Rows] = EdgeMatrix.dot(NormlizedVertex) * 0.85
     UpdatedVertex[Rows] = UpdatedVertex[Rows] + 1.0 / GraphInfo['VertexNum']
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
 
-    # ParticialLevel =  DataInfo['ParticialReport'][PartitionID]
-    if len(ActiveVertex)*1.0/len(VertexVersion) < 0.1:
+    # print len(ActiveVertex)*1.0/len(VertexVersion);
+    if len(ActiveVertex)*1.0 <= 2000:
         ParticialLevel = 2
     # elif len(ActiveVertex)*1.0/len(VertexVersion) < 0.2:
     #     ParticialLevel = 1
@@ -156,10 +157,9 @@ def calc_pagerank(PartitionID,
         ParticialLevel = 0
     if DataInfo['ParticialReport'][PartitionID] < ParticialLevel:
         EdgeMatrix = EdgeMatrix[ActiveVertex]
-        Rows = Rows[ActiveVertex]
+        Rows = ActiveVertex
         write_edgedata(PartitionID, EdgeMatrix, Rows, GraphInfo, Dtype_All)
         DataInfo['ParticialReport'][PartitionID] = ParticialLevel
-
     return UpdatedVertex
 
 class BroadThread(threading.Thread):
@@ -738,11 +738,11 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(8)
-    test_graph.set_MaxIteration(100)
-    test_graph.set_StaleNum(1)
+    test_graph.set_ThreadNum(9)
+    test_graph.set_MaxIteration(50)
+    test_graph.set_StaleNum(2)
     # test_graph.set_FilterThreshold(0)
-    test_graph.set_FilterThreshold(0.00000001)
+    test_graph.set_FilterThreshold(0.000001)
     test_graph.set_CalcFunc(calc_pagerank)
 
     test_graph.run('pagerank')
