@@ -16,7 +16,7 @@ from numpy import linalg as LA
 from functools import partial
 
 QueueUpdatedVertex = Queue.Queue()
-# BSP = True
+#BSP = True
 BSP = False
 
 def intial_vertex(GraphInfo,
@@ -73,45 +73,17 @@ def load_vertexout(GraphInfo,
     _file.close()
     return temp
 
-# def csr_row_set_nz_to_zero(row, csr):
-#     csr.data[csr.indptr[row]:csr.indptr[row+1]] = 0
-#
-# def csr_rows_set_nz_to_zero(csr, rows):
-#     mapfunc = partial(csr_row_set_nz_to_zero, csr=csr)
-#     map(mapfunc, rows)
-#     # for row in rows:
-#     #     csr_row_set_nz_to_zero(csr, row)
-#     # csr.eliminate_zeros()
-# def csr_row_set(row, csr):
-#     return csr.indices[csr.indptr[row]:csr.indptr[row+1]]
-# 
-# def csr_rows_sets(rows, csr):
-#     indices = []
-#     indptr = [0]
-#     for row in rows:
-#         index = csr_row_set(row, csr)
-#         indices.extend(index)
-#         indptr.append(indptr[-1]+len(index))
-#     indices = np.array(indices, dtype=np.int32)
-#     indptr =  np.array(indptr, dtype=np.int32)
-#     data = np.ones(indptr[-1], dtype=np.bool)
-#     encoded_data = (data, indices, indptr)
-#     encoded_shape = (len(rows), csr.shape[1])
-#     mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
-#     return mat_data
-
 def calc_pagerank(PartitionID,
                   IterationNum,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
-    a = time.time()
     start_id = PartitionID * GraphInfo['VertexPerPartition']
     end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
     EdgeMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
-    ActiveVertex = np.where(VertexVersion >= (IterationNum-5))[0]
-    DeactiveVertex = np.where(VertexVersion < (IterationNum-5))[0]
+    ActiveVertex = np.where(VertexVersion >= (IterationNum-3))[0]
+    # DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
 
     UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
     if len(ActiveVertex) == 0:
@@ -128,9 +100,6 @@ def calc_pagerank(PartitionID,
         UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
 
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-    b = time.time()
-    if PartitionID == 25:
-        print len(ActiveVertex),  b-a
     return UpdatedVertex
 
 class BroadThread(threading.Thread):
@@ -700,8 +669,8 @@ if __name__ == '__main__':
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(9)
-    test_graph.set_MaxIteration(100)
-    test_graph.set_StaleNum(1)
+    test_graph.set_MaxIteration(50)
+    test_graph.set_StaleNum(2)
     #test_graph.set_FilterThreshold(0)
     test_graph.set_FilterThreshold(0.00000001)
     test_graph.set_CalcFunc(calc_pagerank)
