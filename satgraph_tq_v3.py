@@ -13,7 +13,7 @@ import Queue
 import zmq
 import snappy
 from numpy import linalg as LA
-import shutil
+from functools import partial
 
 QueueUpdatedVertex = Queue.Queue()
 # BSP = True
@@ -73,12 +73,14 @@ def load_vertexout(GraphInfo,
     _file.close()
     return temp
 
-def csr_row_set_nz_to_zero(csr, row):
+def csr_row_set_nz_to_zero(row, csr):
     csr.data[csr.indptr[row]:csr.indptr[row+1]] = 0
 
 def csr_rows_set_nz_to_zero(csr, rows):
-    for row in rows:
-        csr_row_set_nz_to_zero(csr, row)
+    mapfunc = partial(csr_row_set_nz_to_zero, csr=csr)
+    map(mapfunc, rows)
+    # for row in rows:
+    #     csr_row_set_nz_to_zero(csr, row)
     # csr.eliminate_zeros()
 
 def calc_pagerank(PartitionID,
@@ -93,13 +95,16 @@ def calc_pagerank(PartitionID,
     ActiveVertex = np.where(VertexVersion >= (IterationNum-5))[0]
     DeactiveVertex = np.where(VertexVersion < (IterationNum-5))[0]
 
-    UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
     if len(ActiveVertex) == 0:
+        UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
         return UpdatedVertex
 
+    csr_rows_set_nz_to_zero(EdgeMatrix, DeactiveVertex)
     NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
     UpdatedVertex = EdgeMatrix.dot(NormlizedVertex) * 0.85
     UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+    UpdatedVertex[DeactiveVertex] = \
+        DataInfo['VertexData'][start_id:end_id][DeactiveVertex].copy()
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
 
     return UpdatedVertex
