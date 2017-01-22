@@ -35,7 +35,7 @@ def intial_vertex(GraphInfo,
     elif Str_Policy == 'pagerank':
         temp = np.zeros(GraphInfo['VertexNum'],
                         dtype=Dtype_All['VertexData'])
-        temp = temp + 1.0 / GraphInfo['VertexNum']
+        temp += 1.0 / GraphInfo['VertexNum']
         temp = temp.astype(Dtype_All['VertexData'])
         return temp
     else:
@@ -93,11 +93,11 @@ def calc_pagerank(PartitionID,
         EdgeMatrix = EdgeMatrix[ActiveVertex]
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex[ActiveVertex] = EdgeMatrix.dot(NormlizedVertex) * 0.85
-        UpdatedVertex[ActiveVertex] = UpdatedVertex[ActiveVertex] + 1.0 / GraphInfo['VertexNum']
+        UpdatedVertex[ActiveVertex] += 1.0 / GraphInfo['VertexNum']
     else:
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex = EdgeMatrix.dot(NormlizedVertex) * 0.85
-        UpdatedVertex = UpdatedVertex + 1.0 / GraphInfo['VertexNum']
+        UpdatedVertex += 1.0 / GraphInfo['VertexNum']
 
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex
@@ -141,8 +141,7 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexDataNew'][start_id:end_id] = new_vertex
         # update vertex data
         i = int(updated_vertex[-1])
-        self.__ControlInfo['IterationReport'][i] = \
-            self.__ControlInfo['IterationReport'][i] + 1
+        self.__ControlInfo['IterationReport'][i] += 1
         while True:
             if self.__ControlInfo['IterationNum'] == \
                     self.__ControlInfo['IterationReport'].min():
@@ -152,7 +151,7 @@ class BroadThread(threading.Thread):
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
-        non_zero_id = non_zero_id + start_id
+        non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def update_SSP(self, updated_vertex, start_id, end_id):
@@ -161,12 +160,11 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexData'][start_id:end_id] = new_vertex
         # update vertex data
         i = int(updated_vertex[-1])
-        self.__ControlInfo['IterationReport'][i] = \
-            self.__ControlInfo['IterationReport'][i] + 1
+        self.__ControlInfo['IterationReport'][i] += 1
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
-        non_zero_id = non_zero_id + start_id
+        non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def broadcast_process(self):
@@ -382,9 +380,8 @@ class SchedulerThread(threading.Thread):
                 max_allocate = target_locality.argmax()
                 target_partition = target_partition[max_allocate]
 
-                AllTask[target_partition] = AllTask[target_partition] + 1
-                LocalityInfo[rank][target_partition] = \
-                    LocalityInfo[rank][target_partition] + 1
+                AllTask[target_partition] += 1
+                LocalityInfo[rank][target_partition] += 1
                 socket.send(str(target_partition))
         else:
             socket.send("-1")
