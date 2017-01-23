@@ -1,15 +1,17 @@
 import numpy as np
+import scipy.sparse as sparse
 
 DATAPATH = '/home/mapred/GraphData/twitter/subdata/'
 OUTPATH  = '/home/mapred/GraphData/twitter/edge/'
 P_NUM    = 50
 EDGE_NUM = 30000000
 
+
 def load_edgedata(PartitionID):
     edge_path = DATAPATH + str(PartitionID) + '.edge'
     _file = open(edge_path, 'r')
     temp = np.fromfile(_file, np.int32)
-    edge_num = data = temp[0]
+    edge_num = temp[0]
     indices = temp[3:3 + int(temp[1])]
     indptr = temp[3 + int(temp[1]):3 + int(temp[1]) + int(temp[2])]
     _file.close()
@@ -17,13 +19,39 @@ def load_edgedata(PartitionID):
 
 mat_1 = ();
 mat_2 = ();
-mat_1 = load_edgedata(0)
+mat_1 = list(load_edgedata(0))
 p_id = 0
+v_id = 0
+i = 1
 
-for i in range (1:P_NUM):
+while 1:
     if mat_1[0] < EDGE_NUM:
-        mat_2 = load_edgedata(i)
+        if i == P_NUM:
+            break
+        mat_2 = list(load_edgedata(i))
         mat_1[0] += mat_2[0]
         mat_1[1]  = np.append(mat_1[1], mat_2[1])
         mat_2[2] += mat_1[2][-1]
         mat_1[2]  = np.append(mat_1[2], mat_2[2][1:])
+        i = i + 1
+    else:
+        start_id = v_id
+        s_row = np.argmax(mat_1[2]>=EDGE_NUM)
+        end_id = start_id + s_row
+        mat = []
+        mat.append(mat_1[2][s_row])
+        t = mat_1[2][s_row]
+        mat.append(mat_1[1][:t])
+        mat.append(mat_1[2][:s_row+1])
+        print "Partition:", p_id, '\t From:', start_id, '\t to:', end_id
+        mat_1[0] -= mat[0]
+        mat_1[1]  = mat_1[1][t:]
+        mat_1[2]  = mat_1[2][s_row:]
+        mat_1[2]  = mat_1[2] - mat_1[2][0]
+        # print mat_1[0], len(mat_1[1]), mat_1[2][-1]
+        p_id += 1
+        v_id  = end_id
+
+start_id = v_id
+end_id   = start_id + len(mat_1[2]) - 1
+print "Partition:", p_id, '\t From:', start_id, '\t to:', end_id
