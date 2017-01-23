@@ -60,8 +60,6 @@ while 1:
         PartitionData.tofile(_File_PartitionData)
         _File_PartitionData.close()
 
-
-
         mat_1[0] -= mat[0]
         mat_1[1]  = mat_1[1][t:]
         mat_1[2]  = mat_1[2][s_row:]
@@ -73,3 +71,19 @@ while 1:
 start_id = v_id
 end_id   = start_id + len(mat_1[2]) - 1
 print "Partition:", p_id, '\t From:', start_id, '\t to:', end_id
+_File_PartitionData = open(OUTPATH + str(p_id) + '.edge', 'w')
+Partition_Indices = mat_1[1]
+Partition_Indptr = mat_1[2]
+Len_Indices = len(Partition_Indices)
+Len_Indptr = len(Partition_Indptr)
+PartitionData = np.append(mat_1[0], Len_Indices)
+PartitionData = np.append(PartitionData, Len_Indptr)
+PartitionData = np.append(PartitionData, start_id)
+PartitionData = np.append(PartitionData, end_id)
+PartitionData = np.append(PartitionData, Partition_Indices)
+PartitionData = np.append(PartitionData, Partition_Indptr)
+PartitionData = PartitionData.astype(np.int32)
+PartitionData.tofile(_File_PartitionData)
+_File_PartitionData.close()
+
+
