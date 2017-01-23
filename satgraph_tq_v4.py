@@ -49,14 +49,16 @@ def load_edgedata(PartitionID,
     _file = open(edge_path, 'r')
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
-    indices = temp[3:3 + int(temp[1])]
-    indptr = temp[3 + int(temp[1]):3 + int(temp[1]) + int(temp[2])]
+    indices = temp[3:5 + int(temp[1])]
+    indptr = temp[5 + int(temp[1]):5 + int(temp[1]) + int(temp[2])]
+    start_id = temp[3]
+    end_id = temp[4]
 
     encoded_data = (data, indices, indptr)
-    encoded_shape = (GraphInfo['VertexPerPartition'], GraphInfo['VertexNum'])
+    encoded_shape = (end_id-start_id, GraphInfo['VertexNum'])
     mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
     _file.close()
-    return mat_data
+    return mat_data, start_id, end_id
 
 def load_vertexin(GraphInfo,
                   Dtype_All):
@@ -78,9 +80,8 @@ def calc_pagerank(PartitionID,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
-    start_id = PartitionID * GraphInfo['VertexPerPartition']
-    end_id = (PartitionID + 1) * GraphInfo['VertexPerPartition']
-    EdgeMatrix = load_edgedata(PartitionID, GraphInfo, Dtype_All)
+    EdgeMatrix, start_id, end_id = \
+        load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
     ActiveVertex = np.where(VertexVersion >= (IterationNum-3))[0]
     # DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
@@ -100,7 +101,7 @@ def calc_pagerank(PartitionID,
         UpdatedVertex += 1.0 / GraphInfo['VertexNum']
 
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-    return UpdatedVertex
+    return UpdatedVertex, start_id, end_id
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
@@ -136,11 +137,11 @@ class BroadThread(threading.Thread):
         return self.__MPIInfo['MPI_Comm'].bcast(Str_UpdatedVertex, root=0)
 
     def update_BSP(self, updated_vertex, start_id, end_id):
-        new_vertex = updated_vertex[0:-1] + \
+        new_vertex = updated_vertex[0:-3] + \
             self.__DataInfo['VertexData'][start_id:end_id]
         self.__DataInfo['VertexDataNew'][start_id:end_id] = new_vertex
         # update vertex data
-        i = int(updated_vertex[-1])
+        i = int(updated_vertex[-3])
         self.__ControlInfo['IterationReport'][i] += 1
         while 1:
             if self.__ControlInfo['IterationNum'] == \
@@ -150,20 +151,20 @@ class BroadThread(threading.Thread):
                 time.sleep(0.1)
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
-        non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
+        non_zero_id = np.where(updated_vertex[0:-3]!=0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def update_SSP(self, updated_vertex, start_id, end_id):
-        new_vertex = updated_vertex[0:-1] + \
+        new_vertex = updated_vertex[0:-3] + \
             self.__DataInfo['VertexData'][start_id:end_id]
         self.__DataInfo['VertexData'][start_id:end_id] = new_vertex
         # update vertex data
-        i = int(updated_vertex[-1])
+        i = int(updated_vertex[-3])
         self.__ControlInfo['IterationReport'][i] += 1
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
-        non_zero_id = np.where(updated_vertex[0:-1]!=0)[0]
+        non_zero_id = np.where(updated_vertex[0:-3]!=0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
@@ -174,10 +175,8 @@ class BroadThread(threading.Thread):
         Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
         updated_vertex = np.fromstring(Str_UpdatedVertex,
                                        dtype=self.__Dtype_All['VertexData'])
-        start_id = int(updated_vertex[-1]) * \
-            self.__GraphInfo['VertexPerPartition']
-        end_id = (int(updated_vertex[-1]) + 1) * \
-            self.__GraphInfo['VertexPerPartition']
+        start_id = int(updated_vertex[-2])
+        end_id   = int(updated_vertex[-1])
 
         if not BSP:
             self.update_SSP(updated_vertex, start_id, end_id)
@@ -303,26 +302,21 @@ class CalcThread(threading.Thread):
                 continue
 
             i = int(message)
-            UpdatedVertex = \
+            UpdatedVertex, start_id, end_id = \
                 self.__ControlInfo['CalcFunc'](i,
                                                self.__ControlInfo['IterationNum'],
                                                self.__DataInfo,
                                                self.__GraphInfo,
                                                self.__Dtype_All)
-            start_id = i * \
-                self.__GraphInfo['VertexPerPartition']
-            end_id = (i + 1) * \
-                self.__GraphInfo['VertexPerPartition']
-            UpdatedVertex = UpdatedVertex - \
-                self.__DataInfo['VertexData'][start_id:end_id]
-
+            UpdatedVertex -= self.__DataInfo['VertexData'][start_id:end_id]
             filterd_id = np.where(abs(UpdatedVertex) <=
                                   self.__ControlInfo['FilterThreshold'])
             UpdatedVertex[filterd_id] = 0
-
             UpdatedVertex = \
                 UpdatedVertex.astype(self.__Dtype_All['VertexData'])
             Tmp_UpdatedData = np.append(UpdatedVertex, i)
+            Tmp_UpdatedData = np.append(UpdatedVertex, start_id)
+            Tmp_UpdatedData = np.append(UpdatedVertex, end_id)
             Tmp_UpdatedData = \
                 Tmp_UpdatedData.astype(self.__Dtype_All['VertexData'])
             Str_UpdatedData = Tmp_UpdatedData.tostring()
@@ -429,11 +423,9 @@ class satgraph():
         self.__DataPath = './subdata/'
         self.__VertexNum = 0
         self.__PartitionNum = 0
-        self.__VertexPerPartition = 0
         self.__GraphInfo['DataPath'] = self.__DataPath
         self.__GraphInfo['VertexNum'] = self.__VertexNum
         self.__GraphInfo['PartitionNum'] = self.__PartitionNum
-        self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition
         self.__ControlInfo['IterationNum'] = 0
         self.__ControlInfo['IterationReport'] = None
         self.__ControlInfo['MaxIteration'] = 10
@@ -476,11 +468,9 @@ class satgraph():
         self.__DataPath = GraphInfo[0]
         self.__VertexNum = GraphInfo[1]
         self.__PartitionNum = GraphInfo[2]
-        self.__VertexPerPartition = GraphInfo[3]
         self.__GraphInfo['DataPath'] = self.__DataPath
         self.__GraphInfo['VertexNum'] = self.__VertexNum
         self.__GraphInfo['PartitionNum'] = self.__PartitionNum
-        self.__GraphInfo['VertexPerPartition'] = self.__VertexPerPartition
         self.__ControlInfo['IterationReport'] = np.zeros(
             self.__GraphInfo['PartitionNum'], dtype=np.int32)
         self.__DataInfo['VertexVersion'] = np.zeros(
@@ -653,7 +643,7 @@ if __name__ == '__main__':
     VertexNum = 41652250
     PartitionNum = 50
 
-    GraphInfo = (DataPath, VertexNum, PartitionNum, VertexNum / PartitionNum)
+    GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
 
     rank_0_host = None
