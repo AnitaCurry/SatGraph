@@ -632,11 +632,11 @@ if __name__ == '__main__':
 
     # DataPath = '/home/mapred/GraphData/wiki/edge/'
     # VertexNum = 4206800
-    # PartitionNum = 20
+    # PartitionNum = 21
     #
     # DataPath = '/home/mapred/GraphData/uk/edge/'
     # VertexNum = 787803000
-    # PartitionNum = 3000
+    # PartitionNum = 3170
 
     DataPath = '/home/mapred/GraphData/twitter/edge/'
     VertexNum = 41652250
@@ -658,7 +658,7 @@ if __name__ == '__main__':
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(2)
     #test_graph.set_FilterThreshold(0)
-    test_graph.set_FilterThreshold(0.00000001)
+    test_graph.set_FilterThreshold(1/VertexNum)
     test_graph.set_CalcFunc(calc_pagerank)
 
     test_graph.run('pagerank')
