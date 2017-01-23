@@ -1,10 +1,10 @@
 import numpy as np
 import scipy.sparse as sparse
 
-DATAPATH = '/home/mapred/GraphData/twitter/subdata/'
-OUTPATH  = '/home/mapred/GraphData/twitter/edge/'
-P_NUM    = 50
-EDGE_NUM = 30000000
+DATAPATH = '/home/mapred/GraphData/uk/subdata/'
+OUTPATH  = '/home/mapred/GraphData/uk/edge/'
+P_NUM    = 3000
+EDGE_NUM = 15000000
 
 
 def load_edgedata(PartitionID):

@@ -49,10 +49,10 @@ def load_edgedata(PartitionID,
     _file = open(edge_path, 'r')
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
-    indices = temp[3:5 + int(temp[1])]
+    indices = temp[5:5 + int(temp[1])]
     indptr = temp[5 + int(temp[1]):5 + int(temp[1]) + int(temp[2])]
-    start_id = temp[3]
-    end_id = temp[4]
+    start_id = int(temp[3])
+    end_id = int(temp[4])
 
     encoded_data = (data, indices, indptr)
     encoded_shape = (end_id-start_id, GraphInfo['VertexNum'])
@@ -156,9 +156,7 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def update_SSP(self, updated_vertex, start_id, end_id):
-        new_vertex = updated_vertex[0:-3] + \
-            self.__DataInfo['VertexData'][start_id:end_id]
-        self.__DataInfo['VertexData'][start_id:end_id] = new_vertex
+        self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-3]
         # update vertex data
         i = int(updated_vertex[-3])
         self.__ControlInfo['IterationReport'][i] += 1
@@ -315,10 +313,11 @@ class CalcThread(threading.Thread):
             UpdatedVertex = \
                 UpdatedVertex.astype(self.__Dtype_All['VertexData'])
             Tmp_UpdatedData = np.append(UpdatedVertex, i)
-            Tmp_UpdatedData = np.append(UpdatedVertex, start_id)
-            Tmp_UpdatedData = np.append(UpdatedVertex, end_id)
+            Tmp_UpdatedData = np.append(Tmp_UpdatedData, start_id)
+            Tmp_UpdatedData = np.append(Tmp_UpdatedData, end_id)
             Tmp_UpdatedData = \
                 Tmp_UpdatedData.astype(self.__Dtype_All['VertexData'])
+
             Str_UpdatedData = Tmp_UpdatedData.tostring()
             Str_UpdatedData = snappy.compress(Str_UpdatedData)
             QueueUpdatedVertex.put(Str_UpdatedData)
@@ -626,22 +625,22 @@ class satgraph():
                              BroadVertexThread, TaskThreadPool)
 
 if __name__ == '__main__':
-    Dtype_VertexData = np.float32
+    Dtype_VertexData = np.float64
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
-    # DataPath = '/home/mapred/GraphData/wiki/subdata/'
+    # DataPath = '/home/mapred/GraphData/wiki/edge/'
     # VertexNum = 4206800
     # PartitionNum = 20
     #
-    # DataPath = '/home/mapred/GraphData/uk/subdata/'
+    # DataPath = '/home/mapred/GraphData/uk/edge/'
     # VertexNum = 787803000
     # PartitionNum = 3000
 
-    DataPath = '/home/mapred/GraphData/twitter/subdata/'
+    DataPath = '/home/mapred/GraphData/twitter/edge/'
     VertexNum = 41652250
-    PartitionNum = 50
+    PartitionNum = 49
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
