@@ -86,11 +86,12 @@ def calc_pagerank(PartitionID,
     ActiveVertex = np.where(VertexVersion >= (IterationNum-3))[0]
     # DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
 
-    UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
     if len(ActiveVertex) == 0:
-        return UpdatedVertex
+        UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
+        return UpdatedVertex, start_id, end_id
 
-    if len(ActiveVertex) <= 10000:
+    if len(ActiveVertex) <= 3000:
+        UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
         EdgeMatrix = EdgeMatrix[ActiveVertex]
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex[ActiveVertex] = EdgeMatrix.dot(NormlizedVertex) * 0.85
@@ -137,11 +138,11 @@ class BroadThread(threading.Thread):
         return self.__MPIInfo['MPI_Comm'].bcast(Str_UpdatedVertex, root=0)
 
     def update_BSP(self, updated_vertex, start_id, end_id):
-        new_vertex = updated_vertex[0:-3] + \
+        new_vertex = updated_vertex[0:-5] + \
             self.__DataInfo['VertexData'][start_id:end_id]
         self.__DataInfo['VertexDataNew'][start_id:end_id] = new_vertex
         # update vertex data
-        i = int(updated_vertex[-3])
+        i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
         while 1:
             if self.__ControlInfo['IterationNum'] == \
@@ -151,18 +152,18 @@ class BroadThread(threading.Thread):
                 time.sleep(0.1)
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
-        non_zero_id = np.where(updated_vertex[0:-3]!=0)[0]
+        non_zero_id = np.where(updated_vertex[0:-5]!=0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def update_SSP(self, updated_vertex, start_id, end_id):
-        self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-3]
+        self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-5]
         # update vertex data
-        i = int(updated_vertex[-3])
+        i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
-        non_zero_id = np.where(updated_vertex[0:-3]!=0)[0]
+        non_zero_id = np.where(updated_vertex[0:-5]!=0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
@@ -173,8 +174,8 @@ class BroadThread(threading.Thread):
         Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
         updated_vertex = np.fromstring(Str_UpdatedVertex,
                                        dtype=self.__Dtype_All['VertexData'])
-        start_id = int(updated_vertex[-2])
-        end_id   = int(updated_vertex[-1])
+        start_id = int(updated_vertex[-4])*1000000+int(updated_vertex[-3])
+        end_id   = int(updated_vertex[-2])*1000000+int(updated_vertex[-1])
 
         if not BSP:
             self.update_SSP(updated_vertex, start_id, end_id)
@@ -296,7 +297,7 @@ class CalcThread(threading.Thread):
             socket.send(TaskRequest)
             message = socket.recv()
             if message == '-1':
-                time.sleep(0.5)
+                time.sleep(0.1)
                 continue
 
             i = int(message)
@@ -312,15 +313,16 @@ class CalcThread(threading.Thread):
             UpdatedVertex[filterd_id] = 0
             UpdatedVertex = \
                 UpdatedVertex.astype(self.__Dtype_All['VertexData'])
-            Tmp_UpdatedData = np.append(UpdatedVertex, i)
-            Tmp_UpdatedData = np.append(Tmp_UpdatedData, start_id)
-            Tmp_UpdatedData = np.append(Tmp_UpdatedData, end_id)
-            Tmp_UpdatedData = \
-                Tmp_UpdatedData.astype(self.__Dtype_All['VertexData'])
+            UpdatedVertex = np.append(UpdatedVertex, i)
+            UpdatedVertex = np.append(UpdatedVertex, int(start_id/1000000))
+            UpdatedVertex = np.append(UpdatedVertex, start_id%1000000)
+            UpdatedVertex = np.append(UpdatedVertex, int(end_id/1000000))
+            UpdatedVertex = np.append(UpdatedVertex, end_id%1000000)
+            UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData'])
 
-            Str_UpdatedData = Tmp_UpdatedData.tostring()
-            Str_UpdatedData = snappy.compress(Str_UpdatedData)
-            QueueUpdatedVertex.put(Str_UpdatedData)
+            UpdatedVertex = UpdatedVertex.tostring()
+            UpdatedVertex = snappy.compress(UpdatedVertex)
+            QueueUpdatedVertex.put(UpdatedVertex)
 
 class SchedulerThread(threading.Thread):
     __MPIInfo = {}
@@ -625,7 +627,7 @@ class satgraph():
                              BroadVertexThread, TaskThreadPool)
 
 if __name__ == '__main__':
-    Dtype_VertexData = np.float64
+    Dtype_VertexData = np.float32
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
@@ -654,11 +656,11 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(9)
+    test_graph.set_ThreadNum(7)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(2)
-    #test_graph.set_FilterThreshold(0)
-    test_graph.set_FilterThreshold(1/VertexNum)
+    test_graph.set_FilterThreshold(10**(-7))
+    # test_graph.set_FilterThreshold(1/VertexNum)
     test_graph.set_CalcFunc(calc_pagerank)
 
     test_graph.run('pagerank')
