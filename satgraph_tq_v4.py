@@ -422,12 +422,9 @@ class satgraph():
         self.__Dtype_All['VertexData'] = np.int32
         self.__Dtype_All['VertexEdgeInfo'] = np.int32
         self.__Dtype_All['EdgeData'] = np.int32
-        self.__DataPath = './subdata/'
-        self.__VertexNum = 0
-        self.__PartitionNum = 0
-        self.__GraphInfo['DataPath'] = self.__DataPath
-        self.__GraphInfo['VertexNum'] = self.__VertexNum
-        self.__GraphInfo['PartitionNum'] = self.__PartitionNum
+        self.__GraphInfo['DataPath'] = None
+        self.__GraphInfo['VertexNum'] = None
+        self.__GraphInfo['PartitionNum'] = None
         self.__ControlInfo['IterationNum'] = 0
         self.__ControlInfo['IterationReport'] = None
         self.__ControlInfo['MaxIteration'] = 10
@@ -467,12 +464,9 @@ class satgraph():
         self.__IP = IP
 
     def set_GraphInfo(self, GraphInfo):
-        self.__DataPath = GraphInfo[0]
-        self.__VertexNum = GraphInfo[1]
-        self.__PartitionNum = GraphInfo[2]
-        self.__GraphInfo['DataPath'] = self.__DataPath
-        self.__GraphInfo['VertexNum'] = self.__VertexNum
-        self.__GraphInfo['PartitionNum'] = self.__PartitionNum
+        self.__GraphInfo['DataPath'] = GraphInfo[0]
+        self.__GraphInfo['VertexNum'] = GraphInfo[1]
+        self.__GraphInfo['PartitionNum'] = GraphInfo[2]
         self.__ControlInfo['IterationReport'] = np.zeros(
             self.__GraphInfo['PartitionNum'], dtype=np.int32)
         self.__DataInfo['VertexVersion'] = np.zeros(
@@ -482,43 +476,6 @@ class satgraph():
         self.__Dtype_All['VertexData'] = Dtype_All[0]
         self.__Dtype_All['VertexEdgeInfo'] = Dtype_All[1]
         self.__Dtype_All['EdgeData'] = Dtype_All[2]
-
-    def set_Dtype_VertexData(self, Dtype_VertexData):
-        self.__Dtype_All['VertexData'] = Dtype_VertexData
-
-    def set_Dtype_VertexEdgeInfo(self, Dtype_VertexEdgeInfo):
-        self.__Dtype_All['VertexEdgeInfo'] = Dtype_VertexEdgeInfo
-
-    def set_Dtype_EdgeData(self, Dtype_EdgeData):
-        self.__Dtype_All['EdgeData'] = Dtype_VertexEdgeInfo
-
-    @property
-    def ControlInfo(self):
-        return self.__ControlInfo
-
-    @property
-    def CalcFunc(self):
-        return self.__CalcFunc
-
-    @property
-    def ThreadNum(self):
-        return self.__ThreadNum
-
-    @property
-    def IP(self):
-        return self.__IP
-
-    @property
-    def Dtype_All(self):
-        return self.__Dtype_All
-
-    @property
-    def GraphInfo(self):
-        return self.__GraphInfo
-
-    @property
-    def DataInfo(self):
-        return self.__DataInfo
 
     def __MPI_Initial(self):
         self.__MPIInfo['MPI_Comm'] = MPI.COMM_WORLD
@@ -658,7 +615,7 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(4)
+    test_graph.set_ThreadNum(7)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(3)
     test_graph.set_FilterThreshold(10**(-7))
