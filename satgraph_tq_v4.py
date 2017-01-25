@@ -86,12 +86,13 @@ def calc_pagerank(PartitionID,
     ActiveVertex = np.where(VertexVersion >= (IterationNum-3))[0]
     # DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
 
+    UpdatedVertex = np.zeros(end_id-start_id, dtype=Dtype_All['VertexData'])
     if len(ActiveVertex) == 0:
-        UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
+        UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         return UpdatedVertex, start_id, end_id
 
     if len(ActiveVertex) <= 3000:
-        UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
+        UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         EdgeMatrix = EdgeMatrix[ActiveVertex]
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex[ActiveVertex] = EdgeMatrix.dot(NormlizedVertex) * 0.85
@@ -531,8 +532,7 @@ class satgraph():
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             NewIteration = True
             if BSP:
-                self.__DataInfo['VertexData'] = \
-                    self.__DataInfo['VertexDataNew'].copy()
+                self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
@@ -556,6 +556,8 @@ class satgraph():
                         self.__ControlInfo, self.__GraphInfo,
                         self.__Dtype_All)
         BroadVertexThread.start()
+
+        MPI.COMM_WORLD.Barrier()
 
         TaskThreadPool = []
         for i in range(self.__ThreadNum):
@@ -614,7 +616,7 @@ class satgraph():
                     LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                 print end_time - start_time, ' # Iter: ', \
                     CurrentIteration, '->', diff_vertex
-                Old_Vertex_ = self.__DataInfo['VertexData'].copy()
+                Old_Vertex_[:] = self.__DataInfo['VertexData'][:]
                 start_time = time.time()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
                 break
@@ -636,13 +638,13 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    # DataPath = '/home/mapred/GraphData/uk/edge/'
-    # VertexNum = 787803000
-    # PartitionNum = 3170
+    DataPath = '/home/mapred/GraphData/uk/edge/'
+    VertexNum = 787803000
+    PartitionNum = 3170
 
-    DataPath = '/home/mapred/GraphData/twitter/edge/'
-    VertexNum = 41652250
-    PartitionNum = 49
+    # DataPath = '/home/mapred/GraphData/twitter/edge/'
+    # VertexNum = 41652250
+    # PartitionNum = 49
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
@@ -658,10 +660,12 @@ if __name__ == '__main__':
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(4)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(2)
+    test_graph.set_StaleNum(3)
     test_graph.set_FilterThreshold(10**(-7))
     # test_graph.set_FilterThreshold(1/VertexNum)
     test_graph.set_CalcFunc(calc_pagerank)
+
+    MPI.COMM_WORLD.Barrier()
 
     test_graph.run('pagerank')
     os._exit(0)

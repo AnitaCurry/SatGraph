@@ -468,27 +468,27 @@ class satgraph():
         self.__GraphInfo['PartitionNum'] = GraphInfo[2]
 
         self.__SM_VertexOut = \
-            mp.Array(ctypes.c_int32, [0]*GraphInfo[1])
+            mp.Array(ctypes.c_int32, GraphInfo[1])
         self.__DataInfo['VertexOut'] = \
             np.frombuffer(self.__SM_VertexOut.get_obj(), dtype=np.int32)
 
         self.__SM_VertexData = \
-            mp.Array(ctypes.c_float, [0]*GraphInfo[1])
+            mp.Array(ctypes.c_float, GraphInfo[1])
         self.__DataInfo['VertexData'] = \
             np.frombuffer(self.__SM_VertexData.get_obj(), dtype=np.float32)
 
         self.__SM_VertexDataNew = \
-            mp.Array(ctypes.c_float, [0]*GraphInfo[1])
+            mp.Array(ctypes.c_float, GraphInfo[1])
         self.__DataInfo['VertexDataNew'] = \
             np.frombuffer(self.__SM_VertexDataNew.get_obj(), dtype=np.float32)
 
         self.__SM_VertexVersion = \
-            mp.Array(ctypes.c_int32, [0]*GraphInfo[1])
+            mp.Array(ctypes.c_int32, GraphInfo[1])
         self.__DataInfo['VertexVersion'] = \
             np.frombuffer(self.__SM_VertexVersion.get_obj(), dtype=np.int32)
 
         self.__SM_IterationReport = \
-            mp.Array(ctypes.c_int32, [0]*GraphInfo[2])
+            mp.Array(ctypes.c_int32, GraphInfo[2])
         self.__ControlInfo['IterationReport'] = \
             np.frombuffer(self.__SM_IterationReport.get_obj(), dtype=np.int32)
 
@@ -576,7 +576,6 @@ class satgraph():
             intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)[:]
         self.__DataInfo['VertexDataNew'][:] = \
             intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)[:]
-
         UpdateVertexThread, TaskSchedulerThread, \
             BroadVertexThread, TaskThreadPool = self.create_threads()
 
@@ -629,12 +628,13 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(4)
-    test_graph.set_MaxIteration(50)
+    test_graph.set_ThreadNum(7)
+    test_graph.set_MaxIteration(10)
     test_graph.set_StaleNum(2)
     test_graph.set_FilterThreshold(10**(-7))
     # test_graph.set_FilterThreshold(1/VertexNum)
     test_graph.set_CalcFunc(calc_pagerank)
+    MPI.COMM_WORLD.Barrier()
 
     test_graph.run('pagerank')
     os._exit(0)
