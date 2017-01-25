@@ -104,6 +104,7 @@ def calc_pagerank(PartitionID,
         UpdatedVertex += 1.0 / GraphInfo['VertexNum']
 
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+    del EdgeMatrix
     return UpdatedVertex, start_id, end_id
 
 class BroadThread(threading.Thread):
@@ -170,19 +171,21 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
     def broadcast_process(self):
-        Str_UpdatedVertex = self.broadcast()
-        if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
+        UpdatedVertex = self.broadcast()
+        if len(UpdatedVertex) == 4 and UpdatedVertex == 'exit':
             return -1
-        Str_UpdatedVertex = snappy.decompress(Str_UpdatedVertex)
-        updated_vertex = np.fromstring(Str_UpdatedVertex,
+        UpdatedVertex = snappy.decompress(UpdatedVertex)
+        UpdatedVertex = np.fromstring(UpdatedVertex,
                                        dtype=self.__Dtype_All['VertexData'])
-        start_id = int(updated_vertex[-4])*1000000+int(updated_vertex[-3])
-        end_id   = int(updated_vertex[-2])*1000000+int(updated_vertex[-1])
+        start_id = int(UpdatedVertex[-4])*1000000+int(UpdatedVertex[-3])
+        end_id   = int(UpdatedVertex[-2])*1000000+int(UpdatedVertex[-1])
 
         if not BSP:
-            self.update_SSP(updated_vertex, start_id, end_id)
+            self.update_SSP(UpdatedVertex, start_id, end_id)
         else:
-            self.update_BSP(updated_vertex, start_id, end_id)
+            self.update_BSP(UpdatedVertex, start_id, end_id)
+
+        del UpdatedVertex
         return 1
 
     def run(self):
