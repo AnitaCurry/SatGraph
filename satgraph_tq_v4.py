@@ -15,6 +15,7 @@ import snappy
 from numpy import linalg as LA
 from functools import partial
 import ctypes
+import gc
 
 QueueUpdatedVertex = Queue.Queue()
 #BSP = True
@@ -92,7 +93,7 @@ def calc_pagerank(PartitionID,
         UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         return UpdatedVertex, start_id, end_id
 
-    if len(ActiveVertex) <= 3000:
+    if len(ActiveVertex) <= 1000:
         UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         EdgeMatrix = EdgeMatrix[ActiveVertex]
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
@@ -105,6 +106,7 @@ def calc_pagerank(PartitionID,
 
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     del EdgeMatrix
+    gc.collect()
     return UpdatedVertex, start_id, end_id
 
 class BroadThread(threading.Thread):
@@ -152,7 +154,7 @@ class BroadThread(threading.Thread):
                     self.__ControlInfo['IterationReport'].min():
                 break
             else:
-                time.sleep(0.1)
+                time.sleep(0.5)
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-5]!=0)[0]
@@ -288,7 +290,7 @@ class CalcThread(threading.Thread):
                         self.__ControlInfo['IterationReport'].min():
                     break
                 else:
-                    time.sleep(0.1)
+                    time.sleep(0.5)
         return 1
 
     def run(self):
@@ -302,7 +304,7 @@ class CalcThread(threading.Thread):
             socket.send(TaskRequest)
             message = socket.recv()
             if message == '-1':
-                time.sleep(0.1)
+                time.sleep(0.5)
                 continue
 
             i = int(message)
@@ -328,6 +330,7 @@ class CalcThread(threading.Thread):
             UpdatedVertex = UpdatedVertex.tostring()
             UpdatedVertex = snappy.compress(UpdatedVertex)
             QueueUpdatedVertex.put(UpdatedVertex)
+            del UpdatedVertex
 
 class SchedulerThread(threading.Thread):
     __MPIInfo = {}
@@ -487,7 +490,7 @@ class satgraph():
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
     def graph_process(self):
-        time.sleep(0.1)
+        time.sleep(0.5)
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
         NewIteration = False
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:

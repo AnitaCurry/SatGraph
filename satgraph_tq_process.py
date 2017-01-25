@@ -609,13 +609,13 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    # DataPath = '/home/mapred/GraphData/uk/edge/'
-    # VertexNum = 787803000
-    # PartitionNum = 3170
+    DataPath = '/home/mapred/GraphData/uk/edge/'
+    VertexNum = 787803000
+    PartitionNum = 3170
 
-    DataPath = '/home/mapred/GraphData/twitter/edge/'
-    VertexNum = 41652250
-    PartitionNum = 49
+    # DataPath = '/home/mapred/GraphData/twitter/edge/'
+    # VertexNum = 41652250
+    # PartitionNum = 49
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
@@ -628,8 +628,8 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(7)
-    test_graph.set_MaxIteration(10)
+    test_graph.set_ThreadNum(20)
+    test_graph.set_MaxIteration(2)
     test_graph.set_StaleNum(2)
     test_graph.set_FilterThreshold(10**(-7))
     # test_graph.set_FilterThreshold(1/VertexNum)
