@@ -590,11 +590,6 @@ class satgraph():
             start_time = time.time()
             app_start_time = time.time()
             log_start_time = time.time()
-            progress = len(self.__ControlInfo['IterationReport'] > \
-                self.__ControlInfo['IterationNum'])
-            print self.__ControlInfo['IterationNum'], \
-                    ">", \
-                    progress*1.0/self.__GraphInfo['PartitionNum']
 
         while True:
             NewIteration, CurrentIteration = self.graph_process()
@@ -607,7 +602,12 @@ class satgraph():
                 log_end_time = time.time()
                 if log_end_time - log_start_time >= 30:
                     log_start_time = log_end_time
-                    print
+                    progress = \
+                        len(self.__ControlInfo['IterationReport'] > \
+                        self.__ControlInfo['IterationNum'])
+                    print self.__ControlInfo['IterationNum'], \
+                            "->", \
+                            progress*1.0/self.__GraphInfo['PartitionNum']
 
             if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
                 end_time = time.time()
