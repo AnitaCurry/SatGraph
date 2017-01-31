@@ -512,8 +512,8 @@ class satgraph():
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             NewIteration = True
             if BSP:
-                self.__DataInfo['VertexData'][
-                    :] = self.__DataInfo['VertexDataNew'][:]
+                self.__DataInfo['VertexData'][:] = \
+                    self.__DataInfo['VertexDataNew'][:]
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
@@ -589,6 +589,12 @@ class satgraph():
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
             start_time = time.time()
             app_start_time = time.time()
+            log_start_time = time.time()
+            progress = len(self.__ControlInfo['IterationReport'] > \
+                self.__ControlInfo['IterationNum'])
+            print self.__ControlInfo['IterationNum'], \
+                    ">", \
+                    progress*1.0/self.__GraphInfo['PartitionNum']
 
         while True:
             NewIteration, CurrentIteration = self.graph_process()
@@ -596,6 +602,12 @@ class satgraph():
             if gc_time_end - gc_time_start >= 10:
                 gc_time_start = gc_time_end
                 gc.collect()
+
+            if self.__MPIInfo['MPI_Rank'] == 0:
+                log_end_time = time.time()
+                if log_end_time - log_start_time >= 30:
+                    log_start_time = log_end_time
+                    print
 
             if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
                 end_time = time.time()
