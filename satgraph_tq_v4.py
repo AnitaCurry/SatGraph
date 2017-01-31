@@ -107,7 +107,6 @@ def calc_pagerank(PartitionID,
 
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     del EdgeMatrix
-    gc.collect()
     return UpdatedVertex, start_id, end_id
 
 class BroadThread(threading.Thread):
@@ -572,9 +571,16 @@ class satgraph():
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
             start_time = time.time()
             app_start_time = time.time()
+            gc_time_start = time.time()
 
         while 1:
             NewIteration, CurrentIteration = self.graph_process()
+            gc_time_end = time.time()
+            if gc_time_end - gc_time_start >= 10:
+                gc_time_start = gc_time_end
+                gc.collect()
+
+
             if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
                 end_time = time.time()
                 diff_vertex = 10000 * \
