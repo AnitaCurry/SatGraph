@@ -17,6 +17,7 @@ from functools import partial
 import ctypes
 import gc
 
+SLEEP_TIME = 0.1
 QueueUpdatedVertex = Queue.Queue()
 #BSP = True
 BSP = False
@@ -93,7 +94,7 @@ def calc_pagerank(PartitionID,
         UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         return UpdatedVertex, start_id, end_id
 
-    if len(ActiveVertex) <= 1000:
+    if len(ActiveVertex) <= 10:
         UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         EdgeMatrix = EdgeMatrix[ActiveVertex]
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
@@ -154,7 +155,7 @@ class BroadThread(threading.Thread):
                     self.__ControlInfo['IterationReport'].min():
                 break
             else:
-                time.sleep(0.5)
+                time.sleep(SLEEP_TIME)
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-5]!=0)[0]
@@ -290,7 +291,7 @@ class CalcThread(threading.Thread):
                         self.__ControlInfo['IterationReport'].min():
                     break
                 else:
-                    time.sleep(0.5)
+                    time.sleep(SLEEP_TIME)
         return 1
 
     def run(self):
@@ -304,7 +305,7 @@ class CalcThread(threading.Thread):
             socket.send(TaskRequest)
             message = socket.recv()
             if message == '-1':
-                time.sleep(0.5)
+                time.sleep(SLEEP_TIME)
                 continue
 
             i = int(message)
@@ -475,9 +476,9 @@ class satgraph():
         self.__GraphInfo['VertexNum'] = GraphInfo[1]
         self.__GraphInfo['PartitionNum'] = GraphInfo[2]
         self.__ControlInfo['IterationReport'] = np.zeros(
-            self.__GraphInfo['PartitionNum'], dtype=np.int32)
+            self.__GraphInfo['PartitionNum'], dtype=np.int16)
         self.__DataInfo['VertexVersion'] = np.zeros(
-            self.__GraphInfo['VertexNum'], dtype=np.int32)
+            self.__GraphInfo['VertexNum'], dtype=np.int16)
 
     def set_Dtype_All(self, Dtype_All):
         self.__Dtype_All['VertexData'] = Dtype_All[0]
@@ -490,7 +491,7 @@ class satgraph():
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
     def graph_process(self):
-        time.sleep(0.5)
+        time.sleep(SLEEP_TIME)
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
         NewIteration = False
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
@@ -602,13 +603,18 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    DataPath = '/home/mapred/GraphData/uk/edge/'
+    DataPath = '/home/mapred/GraphData/uk/edge2/'
     VertexNum = 787803000
-    PartitionNum = 3170
+    PartitionNum = 9490
 
-    # DataPath = '/home/mapred/GraphData/twitter/edge/'
+    # DataPath = '/home/mapred/GraphData/soc/edge2/'
+    # VertexNum = 4847571
+    # PartitionNum = 14
+
+    # DataPath = '/home/mapred/GraphData/twitter/edge2/'
     # VertexNum = 41652250
-    # PartitionNum = 49
+    # PartitionNum = 294
+
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()

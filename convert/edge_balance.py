@@ -1,10 +1,10 @@
 import numpy as np
 import scipy.sparse as sparse
 
-DATAPATH = '/home/mapred/GraphData/uk/subdata/'
-OUTPATH  = '/home/mapred/GraphData/uk/edge/'
-P_NUM    = 3000
-EDGE_NUM = 15000000
+DATAPATH = '/home/mapred/GraphData/eu/edge/'
+OUTPATH  = '/home/mapred/GraphData/eu/edge2/'
+P_NUM    = 5096
+EDGE_NUM = 5000000
 
 
 def load_edgedata(PartitionID):
@@ -12,8 +12,8 @@ def load_edgedata(PartitionID):
     _file = open(edge_path, 'r')
     temp = np.fromfile(_file, np.int32)
     edge_num = temp[0]
-    indices = temp[3:3 + int(temp[1])]
-    indptr = temp[3 + int(temp[1]):3 + int(temp[1]) + int(temp[2])]
+    indices = temp[5:5 + int(temp[1])]
+    indptr = temp[5 + int(temp[1]):5 + int(temp[1]) + int(temp[2])]
     _file.close()
     return edge_num, indices, indptr
 
