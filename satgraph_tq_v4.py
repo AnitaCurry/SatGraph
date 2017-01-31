@@ -22,6 +22,7 @@ QueueUpdatedVertex = Queue.Queue()
 #BSP = True
 BSP = False
 
+
 def intial_vertex(GraphInfo,
                   Dtype_All,
                   Str_Policy='ones'):
@@ -45,6 +46,7 @@ def intial_vertex(GraphInfo,
         return np.ones(GraphInfo['VertexNum'],
                        dtype=Dtype_All[0])
 
+
 def load_edgedata(PartitionID,
                   GraphInfo,
                   Dtype_All):
@@ -58,10 +60,11 @@ def load_edgedata(PartitionID,
     end_id = int(temp[4])
 
     encoded_data = (data, indices, indptr)
-    encoded_shape = (end_id-start_id, GraphInfo['VertexNum'])
+    encoded_shape = (end_id - start_id, GraphInfo['VertexNum'])
     mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
     _file.close()
     return mat_data, start_id, end_id
+
 
 def load_vertexin(GraphInfo,
                   Dtype_All):
@@ -69,6 +72,7 @@ def load_vertexin(GraphInfo,
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     _file.close()
     return temp
+
 
 def load_vertexout(GraphInfo,
                    Dtype_All):
@@ -78,6 +82,7 @@ def load_vertexout(GraphInfo,
     _file.close()
     return temp
 
+
 def calc_pagerank(PartitionID,
                   IterationNum,
                   DataInfo,
@@ -86,10 +91,10 @@ def calc_pagerank(PartitionID,
     EdgeMatrix, start_id, end_id = \
         load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
-    ActiveVertex = np.where(VertexVersion >= (IterationNum-3))[0]
+    ActiveVertex = np.where(VertexVersion >= (IterationNum - 3))[0]
     # DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
 
-    UpdatedVertex = np.zeros(end_id-start_id, dtype=Dtype_All['VertexData'])
+    UpdatedVertex = np.zeros(end_id - start_id, dtype=Dtype_All['VertexData'])
     if len(ActiveVertex) == 0:
         UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         return UpdatedVertex, start_id, end_id
@@ -108,6 +113,7 @@ def calc_pagerank(PartitionID,
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     del EdgeMatrix
     return UpdatedVertex, start_id, end_id
+
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
@@ -149,7 +155,7 @@ class BroadThread(threading.Thread):
         # update vertex data
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
-        while 1:
+        while True:
             if self.__ControlInfo['IterationNum'] == \
                     self.__ControlInfo['IterationReport'].min():
                 break
@@ -157,7 +163,7 @@ class BroadThread(threading.Thread):
                 time.sleep(SLEEP_TIME)
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
-        non_zero_id = np.where(updated_vertex[0:-5]!=0)[0]
+        non_zero_id = np.where(updated_vertex[0:-5] != 0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
@@ -168,7 +174,7 @@ class BroadThread(threading.Thread):
         self.__ControlInfo['IterationReport'][i] += 1
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
-        non_zero_id = np.where(updated_vertex[0:-5]!=0)[0]
+        non_zero_id = np.where(updated_vertex[0:-5] != 0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
@@ -178,9 +184,9 @@ class BroadThread(threading.Thread):
             return -1
         UpdatedVertex = snappy.decompress(UpdatedVertex)
         UpdatedVertex = np.fromstring(UpdatedVertex,
-                                       dtype=self.__Dtype_All['VertexData'])
-        start_id = int(UpdatedVertex[-4])*1000000+int(UpdatedVertex[-3])
-        end_id   = int(UpdatedVertex[-2])*1000000+int(UpdatedVertex[-1])
+                                      dtype=self.__Dtype_All['VertexData'])
+        start_id = int(UpdatedVertex[-4]) * 1000000 + int(UpdatedVertex[-3])
+        end_id = int(UpdatedVertex[-2]) * 1000000 + int(UpdatedVertex[-1])
 
         if not BSP:
             self.update_SSP(UpdatedVertex, start_id, end_id)
@@ -191,9 +197,10 @@ class BroadThread(threading.Thread):
         return 1
 
     def run(self):
-        while 1:
+        while True:
             if self.broadcast_process() == -1:
                 break
+
 
 class UpdateThread(threading.Thread):
     __MPIInfo = {}
@@ -235,14 +242,14 @@ class UpdateThread(threading.Thread):
             socket = context.socket(zmq.REP)
             print(self.__IP, self.__UpdatePort)
             socket.bind("tcp://*:%s" % self.__UpdatePort)
-            while 1:
+            while True:
                 string_receive = socket.recv()
                 QueueUpdatedVertex.put(string_receive)
                 socket.send("ACK")
                 if len(string_receive) == 4 and string_receive == 'exit':
                     break
         else:
-            while 1:
+            while True:
                 Str_UpdatedVertex = QueueUpdatedVertex.get()
                 if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
                     break
@@ -253,6 +260,7 @@ class UpdateThread(threading.Thread):
                 socket.connect("tcp://%s:%s" % (self.__IP, self.__UpdatePort))
                 socket.send(Str_UpdatedVertex)
                 socket.recv()
+
 
 class CalcThread(threading.Thread):
     __GraphInfo = {}
@@ -285,7 +293,7 @@ class CalcThread(threading.Thread):
         if self.__stop.is_set():
             return -1
         if BSP:
-            while 1:
+            while True:
                 if self.__ControlInfo['IterationNum'] == \
                         self.__ControlInfo['IterationReport'].min():
                     break
@@ -294,7 +302,7 @@ class CalcThread(threading.Thread):
         return 1
 
     def run(self):
-        while 1:
+        while True:
             if self.sync() == -1:
                 break
             context = zmq.Context()
@@ -321,16 +329,18 @@ class CalcThread(threading.Thread):
             UpdatedVertex = \
                 UpdatedVertex.astype(self.__Dtype_All['VertexData'])
             UpdatedVertex = np.append(UpdatedVertex, i)
-            UpdatedVertex = np.append(UpdatedVertex, int(start_id/1000000))
-            UpdatedVertex = np.append(UpdatedVertex, start_id%1000000)
-            UpdatedVertex = np.append(UpdatedVertex, int(end_id/1000000))
-            UpdatedVertex = np.append(UpdatedVertex, end_id%1000000)
-            UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData'])
+            UpdatedVertex = np.append(UpdatedVertex, int(start_id / 1000000))
+            UpdatedVertex = np.append(UpdatedVertex, start_id % 1000000)
+            UpdatedVertex = np.append(UpdatedVertex, int(end_id / 1000000))
+            UpdatedVertex = np.append(UpdatedVertex, end_id % 1000000)
+            UpdatedVertex = UpdatedVertex.astype(
+                self.__Dtype_All['VertexData'])
 
             UpdatedVertex = UpdatedVertex.tostring()
             UpdatedVertex = snappy.compress(UpdatedVertex)
             QueueUpdatedVertex.put(UpdatedVertex)
             del UpdatedVertex
+
 
 class SchedulerThread(threading.Thread):
     __MPIInfo = {}
@@ -402,7 +412,7 @@ class SchedulerThread(threading.Thread):
             LocalityInfo[i] = np.zeros(self.__GraphInfo['PartitionNum'],
                                        dtype=np.int32)
 
-        while 1:
+        while True:
             string_receive = socket.recv()
             command, rank = string_receive.split()
             if command == '-1':  # exit
@@ -410,9 +420,15 @@ class SchedulerThread(threading.Thread):
                 break
             elif command == '1':  # get task
                 rank = int(rank)
-                self.assign_task(rank, LocalityInfo, AllTask, AllProgress, socket)
+                self.assign_task(
+                    rank,
+                    LocalityInfo,
+                    AllTask,
+                    AllProgress,
+                    socket)
             else:
                 socket.send("-1")
+
 
 class satgraph():
     __Dtype_All = {}
@@ -496,7 +512,8 @@ class satgraph():
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             NewIteration = True
             if BSP:
-                self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
+                self.__DataInfo['VertexData'][
+                    :] = self.__DataInfo['VertexDataNew'][:]
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
@@ -573,7 +590,7 @@ class satgraph():
             start_time = time.time()
             app_start_time = time.time()
 
-        while 1:
+        while True:
             NewIteration, CurrentIteration = self.graph_process()
             gc_time_end = time.time()
             if gc_time_end - gc_time_start >= 10:
@@ -619,7 +636,6 @@ if __name__ == '__main__':
     # DataPath = '/home/mapred/GraphData/twitter/edge2/'
     # VertexNum = 41652250
     # PartitionNum = 294
-
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
