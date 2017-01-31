@@ -567,11 +567,11 @@ class satgraph():
         UpdateVertexThread, TaskSchedulerThread, \
             BroadVertexThread, TaskThreadPool = self.create_threads()
 
+        gc_time_start = time.time()
         if self.__MPIInfo['MPI_Rank'] == 0:
             Old_Vertex_ = self.__DataInfo['VertexData'].copy()
             start_time = time.time()
             app_start_time = time.time()
-            gc_time_start = time.time()
 
         while 1:
             NewIteration, CurrentIteration = self.graph_process()
@@ -579,7 +579,6 @@ class satgraph():
             if gc_time_end - gc_time_start >= 10:
                 gc_time_start = gc_time_end
                 gc.collect()
-
 
             if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
                 end_time = time.time()
