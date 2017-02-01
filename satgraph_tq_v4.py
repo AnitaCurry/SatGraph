@@ -17,11 +17,11 @@ from functools import partial
 import ctypes
 import gc
 
-SLEEP_TIME = 0.1
+SLEEP_TIME = 0.5
 QueueUpdatedVertex = Queue.Queue()
 #BSP = True
 BSP = False
-
+LOG_PROGRESS = False
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -597,14 +597,14 @@ class satgraph():
             if gc_time_end - gc_time_start >= 10:
                 gc_time_start = gc_time_end
                 gc.collect()
-
-            if self.__MPIInfo['MPI_Rank'] == 0:
+            
+            if LOG_PROGRESS == True and self.__MPIInfo['MPI_Rank'] == 0:
                 log_end_time = time.time()
                 if log_end_time - log_start_time >= 30:
                     log_start_time = log_end_time
                     progress = \
-                        len(self.__ControlInfo['IterationReport'] > \
-                        self.__ControlInfo['IterationNum'])
+                        (self.__ControlInfo['IterationReport'] > \
+                        self.__ControlInfo['IterationNum']).sum()
                     print self.__ControlInfo['IterationNum'], \
                             "->", \
                             progress*1.0/self.__GraphInfo['PartitionNum']
@@ -637,9 +637,11 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
+    # DataPath = '/home/mapred/GraphData/uk/edge3/'
     DataPath = '/home/mapred/GraphData/uk/edge2/'
     VertexNum = 787803000
-    PartitionNum = 9490
+    # PartitionNum = 9490
+    PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/soc/edge2/'
     # VertexNum = 4847571
@@ -661,7 +663,7 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(7)
+    test_graph.set_ThreadNum(8)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(3)
     test_graph.set_FilterThreshold(10**(-7))
