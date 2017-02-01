@@ -133,7 +133,7 @@ def calc_sssp(PartitionID,
     VertexVersion = DataInfo['VertexVersion']
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
     if len(ActiveVertex) == 0:
-        UpdatedVertex[:] = VertexData[start_id:end_id][:]
+        UpdatedVertex[:] = VertexData[:]
         return UpdatedVertex, start_id, end_id
 
     TmpVertex = sparse.csc_matrix(AllVertex, dtype=Dtype_All['VertexData'])
@@ -143,12 +143,12 @@ def calc_sssp(PartitionID,
     del EdgeMatrix
     del TmpVertex
 
-    UpdatedVertex[:] = VertexData[start_id:end_id][:]
+    UpdatedVertex[:] = VertexData[:]
     if len(ChangedIndex) == 0:
         return UpdatedVertex, start_id, end_id
     UpdatedVertex[ChangedIndex] = ChangedVertex
-    UpdatedVertex[ChangedIndex] = np.minimum(UpdatedVertex[[ChangedIndex]], \
-                                             VertexData[[ChangedIndex]])
+    UpdatedVertex[ChangedIndex] = np.minimum(UpdatedVertex[ChangedIndex], \
+                                             VertexData[ChangedIndex])
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex, start_id, end_id
 
@@ -675,19 +675,17 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    # DataPath = '/home/mapred/GraphData/uk/edge3/'
-    DataPath = '/home/mapred/GraphData/uk/edge2/'
-    VertexNum = 787803000
-    # PartitionNum = 9490
-    PartitionNum = 2379
+    # DataPath = '/home/mapred/GraphData/uk/edge2/'
+    # VertexNum = 787803000
+    # PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/soc/edge2/'
     # VertexNum = 4847571
     # PartitionNum = 14
 
-    # DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    # VertexNum = 41652250
-    # PartitionNum = 294
+    DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    VertexNum = 41652250
+    PartitionNum = 294
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
