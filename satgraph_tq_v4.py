@@ -128,19 +128,20 @@ def calc_sssp(PartitionID,
     EdgeMatrix, start_id, end_id = \
         load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexData = DataInfo['VertexData'][start_id:end_id]
+    AllVertex  = DataInfo['VertexData']
     UpdatedVertex = np.zeros(end_id - start_id, dtype=Dtype_All['VertexData'])
+    VertexVersion = DataInfo['VertexVersion']
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
     if len(ActiveVertex) == 0:
         UpdatedVertex[:] = VertexData[start_id:end_id][:]
         return UpdatedVertex, start_id, end_id
 
-    UpdatedVertex[ActiveVertex] = VertexData[start_id:end_id][ActiveVertex]
-    TmpVertex = sparse.csc_matrix(TmpVertex, dtype=Dtype_All['VertexData'])
-    del TmpVertex
-    EdgeMatrix = EdgeMatrix.multiply(UpdatedVertex) + EdgeMatrix
+    TmpVertex = sparse.csc_matrix(AllVertex, dtype=Dtype_All['VertexData'])
+    EdgeMatrix = EdgeMatrix.multiply(TmpVertex) + EdgeMatrix
     EdgeMatrix.sum_duplicates()
     ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
     del EdgeMatrix
+    del TmpVertex
 
     UpdatedVertex[:] = VertexData[start_id:end_id][:]
     if len(ChangedIndex) == 0:
