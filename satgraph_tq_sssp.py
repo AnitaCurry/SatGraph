@@ -325,7 +325,7 @@ class CalcThread(threading.Thread):
                                                self.__DataInfo,
                                                self.__GraphInfo,
                                                self.__Dtype_All)
-            UpdatedVertex = np.nan_to_num(UpdatedVertex)
+            UpdatedVertex = np.nan_to_num(UpdatedVertex)                              
             UpdatedVertex -= self.__DataInfo['VertexData'][start_id:end_id]
             filterd_id = np.where(abs(UpdatedVertex) <=
                                   self.__ControlInfo['FilterThreshold'])
