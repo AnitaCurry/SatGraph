@@ -22,6 +22,7 @@ QueueUpdatedVertex = Queue.Queue()
 #BSP = True
 BSP = False
 LOG_PROGRESS = False
+NP_INF = 2*10**9
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -33,8 +34,10 @@ def intial_vertex(GraphInfo,
         return np.zeros(GraphInfo['VertexNum'],
                         dtype=Dtype_All['VertexData'])
     elif Str_Policy == 'inf':
-        return np.inf * np.ones(GraphInfo['VertexNum'],
-                                dtype=Dtype_All['VertexData'])
+        tmp = NP_INF * np.ones(GraphInfo['VertexNum'],
+                        dtype=Dtype_All['VertexData'])
+        tmp[0] = 0
+        return tmp
     elif Str_Policy == 'random':
         temp = np.random.random(GraphInfo['VertexNum'])
         temp = temp.astype(Dtype_All['VertexData'])
@@ -325,7 +328,6 @@ class CalcThread(threading.Thread):
                                                self.__DataInfo,
                                                self.__GraphInfo,
                                                self.__Dtype_All)
-            UpdatedVertex = np.nan_to_num(UpdatedVertex)                              
             UpdatedVertex -= self.__DataInfo['VertexData'][start_id:end_id]
             filterd_id = np.where(abs(UpdatedVertex) <=
                                   self.__ControlInfo['FilterThreshold'])
@@ -676,5 +678,5 @@ if __name__ == '__main__':
 
     MPI.COMM_WORLD.Barrier()
 
-    test_graph.run('inf')
+    test_graph.run('pagerank')
     os._exit(0)
