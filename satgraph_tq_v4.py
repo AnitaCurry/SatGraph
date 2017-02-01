@@ -120,6 +120,37 @@ def calc_pagerank(PartitionID,
     del EdgeMatrix
     return UpdatedVertex, start_id, end_id
 
+def calc_sssp(PartitionID,
+              IterationNum,
+              DataInfo,
+              GraphInfo,
+              Dtype_All):
+    EdgeMatrix, start_id, end_id = \
+        load_edgedata(PartitionID, GraphInfo, Dtype_All)
+    VertexData = DataInfo['VertexData'][start_id:end_id]
+    UpdatedVertex = np.zeros(end_id - start_id, dtype=Dtype_All['VertexData'])
+    ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
+    if len(ActiveVertex) == 0:
+        UpdatedVertex[:] = VertexData[start_id:end_id][:]
+        return UpdatedVertex, start_id, end_id
+
+    UpdatedVertex[ActiveVertex] = VertexData[start_id:end_id][ActiveVertex]
+    TmpVertex = sparse.csc_matrix(TmpVertex, dtype=Dtype_All['VertexData'])
+    del TmpVertex
+    EdgeMatrix = EdgeMatrix.multiply(UpdatedVertex) + EdgeMatrix
+    EdgeMatrix.sum_duplicates()
+    ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
+    del EdgeMatrix
+
+    UpdatedVertex[:] = VertexData[start_id:end_id][:]
+    if len(ChangedIndex) == 0:
+        return UpdatedVertex, start_id, end_id
+    UpdatedVertex[ChangedIndex] = ChangedVertex
+    UpdatedVertex[ChangedIndex] = np.minimum(UpdatedVertex[[ChangedIndex]], \
+                                             VertexData[[ChangedIndex]])
+    UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+    return UpdatedVertex, start_id, end_id
+
 
 class BroadThread(threading.Thread):
     __MPIInfo = {}
@@ -674,9 +705,11 @@ if __name__ == '__main__':
     test_graph.set_StaleNum(3)
     test_graph.set_FilterThreshold(10**(-7))
     # test_graph.set_FilterThreshold(1/VertexNum)
-    test_graph.set_CalcFunc(calc_pagerank)
+    # test_graph.set_CalcFunc(calc_pagerank)
+    test_graph.set_CalcFunc(calc_sssp)
 
     MPI.COMM_WORLD.Barrier()
 
-    test_graph.run('pagerank')
+    # test_graph.run('pagerank')
+    test_graph.run('inf')
     os._exit(0)
