@@ -22,7 +22,7 @@ QueueUpdatedVertex = Queue.Queue()
 #BSP = True
 BSP = False
 LOG_PROGRESS = False
-NP_INF = 2*10**9
+NP_INF = 10**6
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -36,7 +36,6 @@ def intial_vertex(GraphInfo,
     elif Str_Policy == 'inf':
         tmp = NP_INF * np.ones(GraphInfo['VertexNum'],
                         dtype=Dtype_All['VertexData'])
-        tmp[0] = 0
         return tmp
     elif Str_Policy == 'random':
         temp = np.random.random(GraphInfo['VertexNum'])
@@ -128,22 +127,32 @@ def calc_sssp(PartitionID,
     EdgeMatrix, start_id, end_id = \
         load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexData = DataInfo['VertexData'][start_id:end_id]
-    AllVertex  = DataInfo['VertexData']
-    UpdatedVertex = np.zeros(end_id - start_id, dtype=Dtype_All['VertexData'])
+    UpdatedVertex = VertexData.copy()
     VertexVersion = DataInfo['VertexVersion']
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
+
     if len(ActiveVertex) == 0:
-        UpdatedVertex[:] = VertexData[:]
+        return UpdatedVertex, start_id, end_id
+    if IterationNum == 0 and start_id != 0:
+        return UpdatedVertex, start_id, end_id
+    if IterationNum == 0 and start_id == 0:
+        UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    TmpVertex = sparse.csc_matrix(AllVertex, dtype=Dtype_All['VertexData'])
+    # TmpVertex = sparse.csc_matrix(AllVertex, dtype=Dtype_All['VertexData'])
+    TmpVertex_data =  DataInfo['VertexData'][ActiveVertex].copy()
+    TmpVertex_indices = ActiveVertex.astype(Dtype_All['VertexEdgeInfo'])
+    TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
+    encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
+    encoded_shape = (1, GraphInfo['VertexNum'])
+    TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
+
     EdgeMatrix = EdgeMatrix.multiply(TmpVertex) + EdgeMatrix
     EdgeMatrix.sum_duplicates()
     ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
     del EdgeMatrix
     del TmpVertex
-
-    UpdatedVertex[:] = VertexData[:]
+    
     if len(ChangedIndex) == 0:
         return UpdatedVertex, start_id, end_id
     UpdatedVertex[ChangedIndex] = ChangedVertex
