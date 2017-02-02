@@ -209,7 +209,6 @@ class BroadThread(threading.Thread):
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
-        self.__ControlInfo['IterationReport'][i] += 1
 
     def update_SSP(self, updated_vertex, start_id, end_id):
         self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-5]
@@ -226,8 +225,7 @@ class BroadThread(threading.Thread):
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
-        self.__ControlInfo['IterationReport'][i] += 1
-
+        
     def broadcast_process(self):
         UpdatedVertex = self.broadcast()
         if len(UpdatedVertex) == 4 and UpdatedVertex == 'exit':
