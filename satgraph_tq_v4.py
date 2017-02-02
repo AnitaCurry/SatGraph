@@ -225,7 +225,7 @@ class BroadThread(threading.Thread):
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
-        
+
     def broadcast_process(self):
         UpdatedVertex = self.broadcast()
         if len(UpdatedVertex) == 4 and UpdatedVertex == 'exit':
@@ -435,6 +435,7 @@ class SchedulerThread(threading.Thread):
                 target_locality = LocalityInfo[rank][target_partition]
                 max_allocate = target_locality.argmax()
                 target_partition = target_partition[max_allocate]
+                print '$$$$$$$',target_status,  self.__ControlInfo['IterationReport'][target_partition]
 
                 AllTask[target_partition] += 1
                 LocalityInfo[rank][target_partition] += 1
