@@ -28,28 +28,23 @@ def intial_vertex(GraphInfo,
                   Dtype_All,
                   Str_Policy='ones'):
     if Str_Policy == 'ones':
-        return np.ones(GraphInfo['VertexNum'],
-                       dtype=Dtype_All['VertexData'])
+        return np.ones(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData'])
     elif Str_Policy == 'zeros':
-        return np.zeros(GraphInfo['VertexNum'],
-                        dtype=Dtype_All['VertexData'])
+        return np.zeros(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData'])
     elif Str_Policy == 'inf':
-        tmp = NP_INF * np.ones(GraphInfo['VertexNum'],
-                        dtype=Dtype_All['VertexData'])
+        tmp = NP_INF * np.ones(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData'])
         return tmp
     elif Str_Policy == 'random':
         temp = np.random.random(GraphInfo['VertexNum'])
         temp = temp.astype(Dtype_All['VertexData'])
         return temp
     elif Str_Policy == 'pagerank':
-        temp = np.zeros(GraphInfo['VertexNum'],
-                        dtype=Dtype_All['VertexData'])
+        temp = np.zeros(GraphInfo['VertexNum'], dtype=Dtype_All['VertexData'])
         temp += 1.0 / GraphInfo['VertexNum']
         temp = temp.astype(Dtype_All['VertexData'])
         return temp
     else:
-        return np.ones(GraphInfo['VertexNum'],
-                       dtype=Dtype_All[0])
+        return np.ones(GraphInfo['VertexNum'], dtype=Dtype_All[0])
 
 
 def load_edgedata(PartitionID,
@@ -93,8 +88,7 @@ def calc_pagerank(PartitionID,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
-    EdgeMatrix, start_id, end_id = \
-        load_edgedata(PartitionID, GraphInfo, Dtype_All)
+    EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
     ActiveVertex = np.where(VertexVersion >= (IterationNum - 3))[0]
     # DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
@@ -124,8 +118,7 @@ def calc_sssp(PartitionID,
               DataInfo,
               GraphInfo,
               Dtype_All):
-    EdgeMatrix, start_id, end_id = \
-        load_edgedata(PartitionID, GraphInfo, Dtype_All)
+    EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexData = DataInfo['VertexData'][start_id:end_id]
     UpdatedVertex = VertexData.copy()
     VertexVersion = DataInfo['VertexVersion']
@@ -155,12 +148,11 @@ def calc_sssp(PartitionID,
     ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
     del EdgeMatrix
     del TmpVertex
-    
+
     if len(ChangedIndex) == 0:
         return UpdatedVertex, start_id, end_id
 
-    UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, \
-                                             VertexData[ChangedIndex])
+    UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     if UpdatedVertex.sum() < 0:
         print UpdatedVertex
@@ -201,15 +193,13 @@ class BroadThread(threading.Thread):
         return self.__MPIInfo['MPI_Comm'].bcast(Str_UpdatedVertex, root=0)
 
     def update_BSP(self, updated_vertex, start_id, end_id):
-        new_vertex = updated_vertex[0:-5] + \
-            self.__DataInfo['VertexData'][start_id:end_id]
+        new_vertex = updated_vertex[0:-5] + self.__DataInfo['VertexData'][start_id:end_id]
         self.__DataInfo['VertexDataNew'][start_id:end_id][:] = new_vertex[:]
         # update vertex data
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
         while True:
-            if self.__ControlInfo['IterationNum'] == \
-                    self.__ControlInfo['IterationReport'].min():
+            if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
                 break
             else:
                 time.sleep(SLEEP_TIME)
@@ -235,8 +225,7 @@ class BroadThread(threading.Thread):
         if len(UpdatedVertex) == 4 and UpdatedVertex == 'exit':
             return -1
         UpdatedVertex = snappy.decompress(UpdatedVertex)
-        UpdatedVertex = np.fromstring(UpdatedVertex,
-                                      dtype=self.__Dtype_All['VertexData'])
+        UpdatedVertex = np.fromstring(UpdatedVertex, dtype=self.__Dtype_All['VertexData'])
         start_id = int(UpdatedVertex[-4]) * 1000000 + int(UpdatedVertex[-3])
         end_id = int(UpdatedVertex[-2]) * 1000000 + int(UpdatedVertex[-1])
 
@@ -244,7 +233,7 @@ class BroadThread(threading.Thread):
             self.update_SSP(UpdatedVertex, start_id, end_id)
         else:
             self.update_BSP(UpdatedVertex, start_id, end_id)
-
+        MPI.COMM_WORLD.Barrier()
         del UpdatedVertex
         return 1
 
@@ -346,8 +335,7 @@ class CalcThread(threading.Thread):
             return -1
         if BSP:
             while True:
-                if self.__ControlInfo['IterationNum'] == \
-                        self.__ControlInfo['IterationReport'].min():
+                if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
                     break
                 else:
                     time.sleep(SLEEP_TIME)
@@ -375,11 +363,9 @@ class CalcThread(threading.Thread):
                                                self.__GraphInfo,
                                                self.__Dtype_All)
             UpdatedVertex -= self.__DataInfo['VertexData'][start_id:end_id]
-            filterd_id = np.where(abs(UpdatedVertex) <
-                                  self.__ControlInfo['FilterThreshold'])
+            filterd_id = np.where(abs(UpdatedVertex) < self.__ControlInfo['FilterThreshold'])
             UpdatedVertex[filterd_id] = 0
-            UpdatedVertex = \
-                UpdatedVertex.astype(self.__Dtype_All['VertexData'])
+            UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData'])
             UpdatedVertex = np.append(UpdatedVertex, i)
             UpdatedVertex = np.append(UpdatedVertex, int(start_id / 1000000))
             UpdatedVertex = np.append(UpdatedVertex, start_id % 1000000)
@@ -431,8 +417,7 @@ class SchedulerThread(threading.Thread):
             socket.send("-1")
         elif AllTask.min() >= self.__ControlInfo['MaxIteration']:
             socket.send("-1")
-        elif AllProgress.max() - AllProgress.min() <= \
-                self.__ControlInfo['StaleNum']:
+        elif AllProgress.max() - AllProgress.min() <= self.__ControlInfo['StaleNum']:
             candicate_partition = np.where(AllTask - AllProgress == 0)[0]
             if len(candicate_partition) == 0:
                 socket.send("-1")
@@ -564,44 +549,49 @@ class satgraph():
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             NewIteration = True
             if BSP:
-                self.__DataInfo['VertexData'][:] = \
-                    self.__DataInfo['VertexDataNew'][:]
+                self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
     def create_threads(self):
         UpdateVertexThread = \
-            UpdateThread(self.__IP, self.__UpdatePort,
-                         self.__MPIInfo, self.__GraphInfo,
+            UpdateThread(self.__IP,
+                         self.__UpdatePort,
+                         self.__MPIInfo,
+                         self.__GraphInfo,
                          self.__Dtype_All)
         UpdateVertexThread.start()
 
         TaskSchedulerThread = None
         if self.__MPIInfo['MPI_Rank'] == 0:
-            TaskSchedulerThread = \
-                SchedulerThread(self.__IP, self.__TaskqPort,
-                                self.__MPIInfo, self.__GraphInfo,
-                                self.__ControlInfo, self.__Dtype_All)
+            TaskSchedulerThread = SchedulerThread(self.__IP,
+                                                  self.__TaskqPort,
+                                                  self.__MPIInfo,
+                                                  self.__GraphInfo,
+                                                  self.__ControlInfo,
+                                                  self.__Dtype_All)
             TaskSchedulerThread.start()
 
-        BroadVertexThread = \
-            BroadThread(self.__MPIInfo, self.__DataInfo,
-                        self.__ControlInfo, self.__GraphInfo,
-                        self.__Dtype_All)
+        BroadVertexThread = BroadThread(self.__MPIInfo,
+                                        self.__DataInfo,
+                                        self.__ControlInfo,
+                                        self.__GraphInfo,
+                                        self.__Dtype_All)
         BroadVertexThread.start()
 
         MPI.COMM_WORLD.Barrier()
 
         TaskThreadPool = []
         for i in range(self.__ThreadNum):
-            new_task_thead = \
-                CalcThread(self.__DataInfo, self.__GraphInfo,
-                           self.__ControlInfo, self.__IP,
-                           self.__TaskqPort, self.__Dtype_All)
+            new_task_thead = CalcThread(self.__DataInfo,
+                                        self.__GraphInfo,
+                                        self.__ControlInfo,
+                                        self.__IP,
+                                        self.__TaskqPort,
+                                        self.__Dtype_All)
             TaskThreadPool.append(new_task_thead)
             new_task_thead.start()
-        return UpdateVertexThread, TaskSchedulerThread, \
-            BroadVertexThread, TaskThreadPool
+        return UpdateVertexThread, TaskSchedulerThread, BroadVertexThread, TaskThreadPool
 
     def destroy_threads(self,
                         UpdateVertexThread,
@@ -624,15 +614,18 @@ class satgraph():
 
     def run(self, InitialVertex='zero'):
         self.__MPI_Initial()
-        self.__DataInfo['VertexOut'] = \
-            load_vertexout(self.__GraphInfo, self.__Dtype_All)
-        self.__DataInfo['VertexData'] = \
-            intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)
+        self.__DataInfo['VertexOut'] = load_vertexout(self.__GraphInfo,
+                                                      self.__Dtype_All)
+        self.__DataInfo['VertexData'] = intial_vertex(self.__GraphInfo,
+                                                      self.__Dtype_All,
+                                                      InitialVertex)
         if BSP:
             self.__DataInfo['VertexDataNew'] = self.__DataInfo['VertexData'].copy()
 
-        UpdateVertexThread, TaskSchedulerThread, \
-            BroadVertexThread, TaskThreadPool = self.create_threads()
+        UpdateVertexThread,
+        TaskSchedulerThread,
+        BroadVertexThread,
+        TaskThreadPool = self.create_threads()
 
         gc_time_start = time.time()
         if self.__MPIInfo['MPI_Rank'] == 0:
@@ -652,24 +645,19 @@ class satgraph():
                 log_end_time = time.time()
                 if log_end_time - log_start_time >= 30:
                     log_start_time = log_end_time
-                    progress = \
-                        (self.__ControlInfo['IterationReport'] > \
-                        self.__ControlInfo['IterationNum']).sum()
-                    print self.__ControlInfo['IterationNum'], \
-                            "->", \
-                            progress*1.0/self.__GraphInfo['PartitionNum']
+                    progress = self.__ControlInfo['IterationReport'] > self.__ControlInfo['IterationNum']
+                    progress = progress.sum()
+                    progress = progress*1.0/self.__GraphInfo['PartitionNum']
+                    print self.__ControlInfo['IterationNum'], "->", progress
 
             if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
                 end_time = time.time()
-                # diff_vertex = 10000 * \
-                #     LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
-                diff_vertex = (self.__DataInfo['VertexData'] - Old_Vertex_ != 0).sum()
-                print end_time - start_time, ' # Iter: ', \
-                    CurrentIteration, '->', diff_vertex
-                arg_diff = np.where(self.__DataInfo['VertexData'] != Old_Vertex_)
+                # diff_vertex = 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
+                diff_vertex = self.__DataInfo['VertexData'] - Old_Vertex_ != 0
+                diff_vertex = diff_vertex.sum()
+                print end_time - start_time, ' # Iter: ', CurrentIteration, '->', diff_vertex
+                # arg_diff = np.where(self.__DataInfo['VertexData'] != Old_Vertex_)
                 Old_Vertex_[:] = self.__DataInfo['VertexData'][:]
-                # print (Old_Vertex_<NP_INF).sum()
-                # print Old_Vertex_[arg_diff], arg_diff
                 start_time = time.time()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
                 break
@@ -678,8 +666,10 @@ class satgraph():
             app_end_time = time.time()
             print 'Time Used: ', app_end_time - app_start_time
 
-        self.destroy_threads(UpdateVertexThread, TaskSchedulerThread,
-                             BroadVertexThread, TaskThreadPool)
+        self.destroy_threads(UpdateVertexThread,
+                             TaskSchedulerThread,
+                             BroadVertexThread,
+                             TaskThreadPool)
 
 if __name__ == '__main__':
     Dtype_VertexData = np.float32
