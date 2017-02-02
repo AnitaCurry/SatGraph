@@ -197,7 +197,7 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexDataNew'][start_id:end_id][:] = new_vertex[:]
         # update vertex data
         i = int(updated_vertex[-5])
-        IterationReport = self.__ControlInfo['IterationReport'][i] + 1
+        self.__ControlInfo['IterationReport'][i] += 1
 
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
@@ -206,7 +206,6 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
-        CurrentIterationNum = min(CurrentIterationNum, IterationReport)
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
@@ -216,7 +215,7 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-5]
         # update vertex data
         i = int(updated_vertex[-5])
-        IterationReport = self.__ControlInfo['IterationReport'][i] + 1
+        self.__ControlInfo['IterationReport'][i] += 1
 
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
@@ -225,7 +224,6 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
 
         CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
-        CurrentIterationNum = min(CurrentIterationNum, IterationReport)
         if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
             self.__ControlInfo['IterationNum'] = CurrentIterationNum
         self.__ControlInfo['IterationReport'][i] += 1
