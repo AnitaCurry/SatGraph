@@ -124,9 +124,6 @@ def calc_sssp(PartitionID,
     VertexVersion = DataInfo['VertexVersion']
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
 
-    if PartitionID == 0:
-        print '########', IterationNum, PartitionID, UpdatedVertex[0]
-
     if len(ActiveVertex) == 0:
         return UpdatedVertex, start_id, end_id
     if IterationNum == 0 and start_id != 0:
@@ -642,7 +639,7 @@ class satgraph():
 
         while True:
             NewIteration, CurrentIteration = self.graph_process(Iteration)
-            CurrentIteration = Iteration
+            Iteration = CurrentIteration
             gc_time_end = time.time()
             if gc_time_end - gc_time_start >= 10:
                 gc_time_start = gc_time_end
@@ -663,7 +660,8 @@ class satgraph():
                 diff_vertex = self.__DataInfo['VertexData'] - Old_Vertex_ != 0
                 diff_vertex = diff_vertex.sum()
                 print end_time - start_time, ' # Iter: ', CurrentIteration, '->', diff_vertex
-                # arg_diff = np.where(self.__DataInfo['VertexData'] != Old_Vertex_)
+                arg_diff = np.where(self.__DataInfo['VertexData'] != Old_Vertex_)
+                print self.__DataInfo['VertexData'][arg_diff]
                 Old_Vertex_[:] = self.__DataInfo['VertexData'][:]
                 start_time = time.time()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
