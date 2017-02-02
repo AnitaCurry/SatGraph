@@ -435,7 +435,7 @@ class SchedulerThread(threading.Thread):
                 target_locality = LocalityInfo[rank][target_partition]
                 max_allocate = target_locality.argmax()
                 target_partition = target_partition[max_allocate]
-                print '$$$$$$$',target_partition, target_status,  self.__ControlInfo['IterationReport'][target_partition]
+                print '$$$$$$$',target_partition, target_status,  self.__ControlInfo['IterationReport'].min(),  self.__ControlInfo['IterationReport'][target_partition]
 
                 AllTask[target_partition] += 1
                 LocalityInfo[rank][target_partition] += 1
