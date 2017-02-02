@@ -199,16 +199,16 @@ class BroadThread(threading.Thread):
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
 
-        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
-        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
-            self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
-            self.__ControlInfo['IterationNum'] = CurrentIterationNum
-
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-5] != 0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
+
+        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
+        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
+            self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
+            self.__ControlInfo['IterationNum'] = CurrentIterationNum
 
     def update_SSP(self, updated_vertex, start_id, end_id):
         self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-5]
@@ -216,15 +216,15 @@ class BroadThread(threading.Thread):
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
 
-        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
-        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
-            self.__ControlInfo['IterationNum'] = CurrentIterationNum
-
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-5] != 0)[0]
         non_zero_id += start_id
         self.__DataInfo['VertexVersion'][non_zero_id] = version_num
+
+        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
+        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
+            self.__ControlInfo['IterationNum'] = CurrentIterationNum
 
     def broadcast_process(self):
         UpdatedVertex = self.broadcast()
