@@ -198,11 +198,12 @@ class BroadThread(threading.Thread):
         # update vertex data
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
-        while True:
-            if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
-                break
-            else:
-                time.sleep(SLEEP_TIME)
+
+        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
+        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
+            self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
+            self.__ControlInfo['IterationNum'] = CurrentIterationNum
+
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-5] != 0)[0]
@@ -214,6 +215,11 @@ class BroadThread(threading.Thread):
         # update vertex data
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
+
+        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
+        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
+            self.__ControlInfo['IterationNum'] = CurrentIterationNum
+
         # update vertex version number
         version_num = self.__ControlInfo['IterationReport'][i]
         non_zero_id = np.where(updated_vertex[0:-5] != 0)[0]
@@ -542,15 +548,12 @@ class satgraph():
         self.__MPIInfo['MPI_Size'] = self.__MPIInfo['MPI_Comm'].Get_size()
         self.__MPIInfo['MPI_Rank'] = self.__MPIInfo['MPI_Comm'].Get_rank()
 
-    def graph_process(self):
+    def graph_process(self, Iteration):
         time.sleep(SLEEP_TIME)
-        CurrentIterationNum = self.__ControlInfo['IterationReport'].min()
+        CurrentIterationNum = self.__ControlInfo['IterationNum']
         NewIteration = False
-        if self.__ControlInfo['IterationNum'] != CurrentIterationNum:
+        if self.__ControlInfo['IterationNum'] != Iteration:
             NewIteration = True
-            if BSP:
-                self.__DataInfo['VertexData'][:] = self.__DataInfo['VertexDataNew'][:]
-            self.__ControlInfo['IterationNum'] = CurrentIterationNum
         return NewIteration, CurrentIterationNum
 
     def create_threads(self):
@@ -630,9 +633,11 @@ class satgraph():
             start_time = time.time()
             app_start_time = time.time()
             log_start_time = time.time()
+        Iteration = 0
 
         while True:
-            NewIteration, CurrentIteration = self.graph_process()
+            NewIteration, CurrentIteration = self.graph_process(Iteration)
+            CurrentIteration = Iteration
             gc_time_end = time.time()
             if gc_time_end - gc_time_start >= 10:
                 gc_time_start = gc_time_end
