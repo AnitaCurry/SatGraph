@@ -423,23 +423,29 @@ class SchedulerThread(threading.Thread):
             socket.send("-1")
         elif AllTask.min() >= self.__ControlInfo['MaxIteration']:
             socket.send("-1")
-        elif AllProgress.max() - AllProgress.min() <= self.__ControlInfo['StaleNum']:
+        elif AllProgress.max() - self.__ControlInfo['IterationNum'] <= self.__ControlInfo['StaleNum']:
             candicate_partition = np.where(AllTask - AllProgress == 0)[0]
             if len(candicate_partition) == 0:
                 socket.send("-1")
             else:
                 candicate_status = AllTask[candicate_partition]
-                target_status = candicate_status.min()
+                if BSP:
+                    target_status = self.__ControlInfo['IterationNum']
+                else:
+                    target_status = candicate_status.min()
                 target_ids = np.where(candicate_status == target_status)[0]
-                target_partition = candicate_partition[target_ids]
-                target_locality = LocalityInfo[rank][target_partition]
-                max_allocate = target_locality.argmax()
-                target_partition = target_partition[max_allocate]
-                print '$$$$$$$',target_partition, target_status,  self.__ControlInfo['IterationReport'].min(),  self.__ControlInfo['IterationReport'][target_partition]
-
-                AllTask[target_partition] += 1
-                LocalityInfo[rank][target_partition] += 1
-                socket.send(str(target_partition))
+                if len(target_ids) == 0:
+                    socket.send("-1")
+                else:
+                    target_partition = candicate_partition[target_ids]
+                    target_locality = LocalityInfo[rank][target_partition]
+                    max_allocate = target_locality.argmax()
+                    target_partition = target_partition[max_allocate]
+                    # self.__ControlInfo['IterationNum']
+                    print '$$$$$$$',target_partition, target_status,  self.__ControlInfo['IterationReport'].min(),  self.__ControlInfo['IterationReport'][target_partition]
+                    AllTask[target_partition] += 1
+                    LocalityInfo[rank][target_partition] += 1
+                    socket.send(str(target_partition))
         else:
             socket.send("-1")
 
@@ -534,10 +540,8 @@ class satgraph():
         self.__GraphInfo['DataPath'] = GraphInfo[0]
         self.__GraphInfo['VertexNum'] = GraphInfo[1]
         self.__GraphInfo['PartitionNum'] = GraphInfo[2]
-        self.__ControlInfo['IterationReport'] = np.zeros(
-            self.__GraphInfo['PartitionNum'], dtype=np.int16)
-        self.__DataInfo['VertexVersion'] = np.zeros(
-            self.__GraphInfo['VertexNum'], dtype=np.int16)
+        self.__ControlInfo['IterationReport'] = np.zeros(self.__GraphInfo['PartitionNum'], dtype=np.int16)
+        self.__DataInfo['VertexVersion'] = np.zeros(self.__GraphInfo['VertexNum'], dtype=np.int16)
 
     def set_Dtype_All(self, Dtype_All):
         self.__Dtype_All['VertexData'] = Dtype_All[0]
