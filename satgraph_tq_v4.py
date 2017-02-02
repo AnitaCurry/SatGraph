@@ -19,8 +19,8 @@ import gc
 
 SLEEP_TIME = 0.5
 QueueUpdatedVertex = Queue.Queue()
-# BSP = True
-BSP = False
+BSP = True
+# BSP = False
 LOG_PROGRESS = False
 NP_INF = 10**4
 
@@ -141,7 +141,7 @@ def calc_sssp(PartitionID,
     TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
 
     EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
-    # EdgeMatrix.sum_duplicates()
+    EdgeMatrix.sum_duplicates()
     ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
     del EdgeMatrix
     del TmpVertex
@@ -676,6 +676,7 @@ if __name__ == '__main__':
     mkl_rt = ctypes.CDLL('libmkl_rt.so')
     mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(4)))
     Dtype_VertexData = np.uint16
+    # Dtype_VertexData = np.float32
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
