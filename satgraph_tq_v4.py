@@ -622,10 +622,7 @@ class satgraph():
         if BSP:
             self.__DataInfo['VertexDataNew'] = self.__DataInfo['VertexData'].copy()
 
-        UpdateVertexThread,
-        TaskSchedulerThread,
-        BroadVertexThread,
-        TaskThreadPool = self.create_threads()
+        UpdateVertexThread, TaskSchedulerThread, BroadVertexThread, TaskThreadPool = self.create_threads()
 
         gc_time_start = time.time()
         if self.__MPIInfo['MPI_Rank'] == 0:
