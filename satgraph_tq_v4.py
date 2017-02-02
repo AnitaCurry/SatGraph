@@ -17,12 +17,12 @@ from functools import partial
 import ctypes
 import gc
 
-SLEEP_TIME = 0.5
+SLEEP_TIME = 0.1
 QueueUpdatedVertex = Queue.Queue()
-#BSP = True
-BSP = False
+BSP = True
+# BSP = False
 LOG_PROGRESS = False
-NP_INF = 10**6
+NP_INF = 10**3
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -131,6 +131,9 @@ def calc_sssp(PartitionID,
     VertexVersion = DataInfo['VertexVersion']
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
 
+    if PartitionID == 0:
+        print '########', IterationNum, PartitionID, UpdatedVertex[0]
+
     if len(ActiveVertex) == 0:
         return UpdatedVertex, start_id, end_id
     if IterationNum == 0 and start_id != 0:
@@ -139,13 +142,13 @@ def calc_sssp(PartitionID,
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    # TmpVertex = sparse.csc_matrix(AllVertex, dtype=Dtype_All['VertexData'])
-    TmpVertex_data =  DataInfo['VertexData'][ActiveVertex].copy()
-    TmpVertex_indices = ActiveVertex.astype(Dtype_All['VertexEdgeInfo'])
-    TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
-    encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
-    encoded_shape = (1, GraphInfo['VertexNum'])
-    TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
+    TmpVertex = sparse.csc_matrix(DataInfo['VertexData'], dtype=Dtype_All['VertexData'])
+    # TmpVertex_data =  DataInfo['VertexData'][ActiveVertex].copy()
+    # TmpVertex_indices = ActiveVertex.astype(Dtype_All['VertexEdgeInfo'])
+    # TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
+    # encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
+    # encoded_shape = (1, GraphInfo['VertexNum'])
+    # TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
 
     EdgeMatrix = EdgeMatrix.multiply(TmpVertex) + EdgeMatrix
     EdgeMatrix.sum_duplicates()
@@ -155,10 +158,12 @@ def calc_sssp(PartitionID,
     
     if len(ChangedIndex) == 0:
         return UpdatedVertex, start_id, end_id
-    UpdatedVertex[ChangedIndex] = ChangedVertex
-    UpdatedVertex[ChangedIndex] = np.minimum(UpdatedVertex[ChangedIndex], \
+
+    UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, \
                                              VertexData[ChangedIndex])
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+    if UpdatedVertex.sum() < 0:
+        print UpdatedVertex
     return UpdatedVertex, start_id, end_id
 
 
@@ -198,7 +203,7 @@ class BroadThread(threading.Thread):
     def update_BSP(self, updated_vertex, start_id, end_id):
         new_vertex = updated_vertex[0:-5] + \
             self.__DataInfo['VertexData'][start_id:end_id]
-        self.__DataInfo['VertexDataNew'][start_id:end_id] = new_vertex
+        self.__DataInfo['VertexDataNew'][start_id:end_id][:] = new_vertex[:]
         # update vertex data
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
@@ -370,7 +375,7 @@ class CalcThread(threading.Thread):
                                                self.__GraphInfo,
                                                self.__Dtype_All)
             UpdatedVertex -= self.__DataInfo['VertexData'][start_id:end_id]
-            filterd_id = np.where(abs(UpdatedVertex) <=
+            filterd_id = np.where(abs(UpdatedVertex) <
                                   self.__ControlInfo['FilterThreshold'])
             UpdatedVertex[filterd_id] = 0
             UpdatedVertex = \
@@ -624,9 +629,7 @@ class satgraph():
         self.__DataInfo['VertexData'] = \
             intial_vertex(self.__GraphInfo, self.__Dtype_All, InitialVertex)
         if BSP:
-            self.__DataInfo['VertexDataNew'] = \
-                intial_vertex(self.__GraphInfo,
-                              self.__Dtype_All, InitialVertex)
+            self.__DataInfo['VertexDataNew'] = self.__DataInfo['VertexData'].copy()
 
         UpdateVertexThread, TaskSchedulerThread, \
             BroadVertexThread, TaskThreadPool = self.create_threads()
@@ -658,11 +661,15 @@ class satgraph():
 
             if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
                 end_time = time.time()
-                diff_vertex = 10000 * \
-                    LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
+                # diff_vertex = 10000 * \
+                #     LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
+                diff_vertex = (self.__DataInfo['VertexData'] - Old_Vertex_ != 0).sum()
                 print end_time - start_time, ' # Iter: ', \
                     CurrentIteration, '->', diff_vertex
+                arg_diff = np.where(self.__DataInfo['VertexData'] != Old_Vertex_)
                 Old_Vertex_[:] = self.__DataInfo['VertexData'][:]
+                # print (Old_Vertex_<NP_INF).sum()
+                # print Old_Vertex_[arg_diff], arg_diff
                 start_time = time.time()
             if CurrentIteration == self.__ControlInfo['MaxIteration']:
                 break
@@ -708,10 +715,11 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(8)
+    test_graph.set_ThreadNum(7)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(3)
-    test_graph.set_FilterThreshold(10**(-7))
+    test_graph.set_StaleNum(1)
+    #test_graph.set_FilterThreshold(10**(-7))
+    test_graph.set_FilterThreshold(0)
     # test_graph.set_FilterThreshold(1/VertexNum)
     # test_graph.set_CalcFunc(calc_pagerank)
     test_graph.set_CalcFunc(calc_sssp)
