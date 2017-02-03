@@ -132,24 +132,11 @@ def calc_sssp(PartitionID,
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    # TmpVertex = sparse.csr_matrix(DataInfo['VertexData'], dtype=Dtype_All['VertexData'])
-    TmpVertex_data =  DataInfo['VertexData'][ActiveVertex] + 1
-    TmpVertex_indices = ActiveVertex
-    TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
-    encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
-    encoded_shape = (1, GraphInfo['VertexNum'])
-    TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
-
-    EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
-    EdgeMatrix.sum_duplicates()
-    ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
-    del EdgeMatrix
-    del TmpVertex
-
-    if len(ChangedIndex) == 0:
-        return UpdatedVertex, start_id, end_id
-
-    UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
+    for i in xrange(len(EdgeMatrix.shape[0])):
+        NzVertex = EdgeMatrix.indices[EdgeMatrix.indptr[i],EdgeMatrix.indptr[i+1]]
+        InterVertex = np.intersect1d(NzVertex, ActiveVertex, assume_unique=True)
+        if len(InterVertex) > 0:
+            UpdatedVertex[i] = min(DataInfo['VertexData'][InterVertex].min() + 1, VertexData[i])
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex, start_id, end_id
 
@@ -674,10 +661,8 @@ class satgraph():
 if __name__ == '__main__':
     mkl_rt = ctypes.CDLL('libmkl_rt.so')
     mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(4)))
-    
-    
-    Dtype_VertexData = np.float32
-    # Dtype_VertexData = np.uint16
+
+    Dtype_VertexData = np.uint16
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
@@ -704,7 +689,6 @@ if __name__ == '__main__':
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
-
     rank_0_host = None
     if MPI.COMM_WORLD.Get_rank() == 0:
         rank_0_host = MPI.Get_processor_name()
@@ -714,17 +698,11 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(6)
+    test_graph.set_ThreadNum(2)
     test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(3)
-    #test_graph.set_FilterThreshold(10**(-7))
+    test_graph.set_StaleNum(1)
     test_graph.set_FilterThreshold(0)
-    # test_graph.set_FilterThreshold(1/VertexNum)
-    test_graph.set_CalcFunc(calc_pagerank)
-    # test_graph.set_CalcFunc(calc_sssp)
-
+    test_graph.set_CalcFunc(calc_sssp)
     MPI.COMM_WORLD.Barrier()
-
-    test_graph.run('pagerank')
-    # test_graph.run('inf')
+    test_graph.run('inf')
     os._exit(0)
