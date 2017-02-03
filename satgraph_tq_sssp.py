@@ -113,11 +113,11 @@ def calc_pagerank(PartitionID,
     del EdgeMatrix
     return UpdatedVertex, start_id, end_id
 
-def Update_SSSP(i, indices, indptr, ActiveVertex):
+def Update_SSSP(i, indices, indptr, ActiveVertex, VertexData):
     NzVertex = indices[indptr[i]:indptr[i+1]]
     InterVertex = np.intersect1d(NzVertex, ActiveVertex, True)
     if len(InterVertex) > 0:
-        return DataInfo['VertexData'][InterVertex].min() + 1
+        return VertexData[InterVertex].min() + 1
     else:
         return NP_INF
 
@@ -143,9 +143,11 @@ def calc_sssp(PartitionID,
         return UpdatedVertex, start_id, end_id
 
     UpdatedVertex = map(partial(Update_SSSP,
-                      indices=EdgeMatrix.indices,
-                      indptr=EdgeMatrix.indptr,
-                      ActiveVertex=ActiveVertex), range(EdgeMatrix.shape[0]))
+                                indices=EdgeMatrix.indices,
+                                indptr=EdgeMatrix.indptr,
+                                ActiveVertex=ActiveVertex,
+                                VertexData=DataInfo['VertexData']), 
+                        range(EdgeMatrix.shape[0]))
     UpdatedVertex = np.array(UpdatedVertex, dtype=Dtype_All['VertexData'])
 
     # for i in xrange(EdgeMatrix.shape[0]):
