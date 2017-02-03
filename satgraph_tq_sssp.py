@@ -16,6 +16,8 @@ from numpy import linalg as LA
 from functools import partial
 import ctypes
 import gc
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
 
 SLEEP_TIME = 0.5
 QueueUpdatedVertex = Queue.Queue()
@@ -142,11 +144,12 @@ def calc_sssp(PartitionID,
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    UpdatedVertex = map(partial(Update_SSSP,
+    pool = ThreadPool(1)
+    UpdatedVertex = pool.map(partial(Update_SSSP,
                                 indices=EdgeMatrix.indices,
                                 indptr=EdgeMatrix.indptr,
                                 ActiveVertex=ActiveVertex,
-                                VertexData=DataInfo['VertexData']), 
+                                VertexData=DataInfo['VertexData']),
                         range(EdgeMatrix.shape[0]))
     UpdatedVertex = np.array(UpdatedVertex, dtype=Dtype_All['VertexData'])
 
