@@ -675,7 +675,9 @@ if __name__ == '__main__':
     mkl_rt = ctypes.CDLL('libmkl_rt.so')
     mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(4)))
     
+    
     Dtype_VertexData = np.float32
+    # Dtype_VertexData = np.uint16
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
@@ -702,19 +704,27 @@ if __name__ == '__main__':
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
+
     rank_0_host = None
     if MPI.COMM_WORLD.Get_rank() == 0:
         rank_0_host = MPI.Get_processor_name()
     rank_0_host = MPI.COMM_WORLD.bcast(rank_0_host, root=0)
+
     test_graph.set_Dtype_All(Dtype_All)
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(7)
+    test_graph.set_ThreadNum(6)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(3)
-    test_graph.set_FilterThreshold(0.5/VertexNum)
+    #test_graph.set_FilterThreshold(10**(-7))
+    test_graph.set_FilterThreshold(0)
+    # test_graph.set_FilterThreshold(1/VertexNum)
     test_graph.set_CalcFunc(calc_pagerank)
+    # test_graph.set_CalcFunc(calc_sssp)
+
     MPI.COMM_WORLD.Barrier()
+
     test_graph.run('pagerank')
+    # test_graph.run('inf')
     os._exit(0)
