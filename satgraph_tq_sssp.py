@@ -18,6 +18,7 @@ import ctypes
 import gc
 
 SLEEP_TIME = 0.5
+STOP = False
 QueueUpdatedVertex = Queue.Queue()
 BSP = True
 # BSP = False
@@ -131,46 +132,30 @@ def calc_sssp(PartitionID,
     if IterationNum == 0 and start_id == 0:
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
-    
     ActiveVertex = np.intersect1d(ActiveVertex, EdgeMatrix.indices)
     if len(ActiveVertex) == 0:
         return UpdatedVertex, start_id, end_id
 
-    
     # TmpVertex_data =  DataInfo['VertexData'][ActiveVertex] + 1
     # TmpVertex_indices = ActiveVertex
     # TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
     # encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
     # encoded_shape = (1, GraphInfo['VertexNum'])
     # TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
-
     TmpVertex = np.zeros(EdgeMatrix.shape[1])
     TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
     TmpVertex = sparse.dia_matrix((TmpVertex, [0]), shape=(len(TmpVertex), len(TmpVertex)))
     EdgeMatrix = EdgeMatrix._mul_sparse_matrix(TmpVertex)
-
     # EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
-    
+
     EdgeMatrix.sum_duplicates()
     ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
-
     del EdgeMatrix
     del TmpVertex
-
     if len(ChangedIndex) == 0:
         return UpdatedVertex, start_id, end_id
-
     UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-
-    # print "$$$", b-a
-    # EdgeMatrix = EdgeMatrix.multiply(sparse.csr_matrix(DataInfo['VertexData']+1))
-    # EdgeMatrix.sum_duplicates()
-    # ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
-    # del EdgeMatrix
-    # UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
-    # UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-
     return UpdatedVertex, start_id, end_id
 
 
@@ -433,7 +418,7 @@ class SchedulerThread(threading.Thread):
         self.__stop = threading.Event()
 
     def assign_task(self, rank, LocalityInfo, AllTask, AllProgress, socket):
-        if AllProgress.min() >= self.__ControlInfo['MaxIteration']:
+        if AllProgress.min() >= self.__ControlInfo['MaxIteration'] or STOP:
             socket.send("-1")
         elif AllTask.min() >= self.__ControlInfo['MaxIteration']:
             socket.send("-1")
@@ -646,8 +631,8 @@ class satgraph():
         UpdateVertexThread, TaskSchedulerThread, BroadVertexThread, TaskThreadPool = self.create_threads()
 
         gc_time_start = time.time()
+        Old_Vertex_ = self.__DataInfo['VertexData'].copy()
         if self.__MPIInfo['MPI_Rank'] == 0:
-            Old_Vertex_ = self.__DataInfo['VertexData'].copy()
             start_time = time.time()
             app_start_time = time.time()
             log_start_time = time.time()
@@ -671,21 +656,27 @@ class satgraph():
                     progress = progress*1.0/self.__GraphInfo['PartitionNum']
                     print self.__ControlInfo['IterationNum'], "->", progress
 
-            if NewIteration and self.__MPIInfo['MPI_Rank'] == 0:
+            if NewIteration:
                 end_time = time.time()
-                # diff_vertex = 10000 * LA.norm(self.__DataInfo['VertexData'] - Old_Vertex_)
                 diff_vertex = self.__DataInfo['VertexData'] - Old_Vertex_ != 0
                 diff_vertex = diff_vertex.sum()
-                print end_time - start_time, ' # Iter: ', CurrentIteration, '->', diff_vertex
+                if self.__MPIInfo['MPI_Rank'] == 0:
+                    print end_time - start_time, \
+                        ' # Iter: ',\
+                         CurrentIteration, \
+                         '->', diff_vertex
+                if diff_vertex == 0:
+                    STOP = True
                 Old_Vertex_[:] = self.__DataInfo['VertexData'][:]
                 start_time = time.time()
-            if CurrentIteration == self.__ControlInfo['MaxIteration']:
+            if CurrentIteration == self.__ControlInfo['MaxIteration'] or STOP:
                 break
 
         if self.__MPIInfo['MPI_Rank'] == 0:
             app_end_time = time.time()
             print 'Time Used: ', app_end_time - app_start_time
 
+        MPI.COMM_WORLD.Barrier()
         self.destroy_threads(UpdateVertexThread,
                              TaskSchedulerThread,
                              BroadVertexThread,

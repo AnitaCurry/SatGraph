@@ -674,7 +674,7 @@ class satgraph():
 if __name__ == '__main__':
     mkl_rt = ctypes.CDLL('libmkl_rt.so')
     mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(4)))
-    
+
     Dtype_VertexData = np.float32
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
