@@ -113,6 +113,14 @@ def calc_pagerank(PartitionID,
     del EdgeMatrix
     return UpdatedVertex, start_id, end_id
 
+def Update_SSSP(i, indices, indptr, ActiveVertex):
+    NzVertex = indices[indptr[i]:indptr[i+1]]
+    InterVertex = np.intersect1d(NzVertex, ActiveVertex, True)
+    if len(InterVertex) > 0:
+        return DataInfo['VertexData'][InterVertex].min() + 1
+    else:
+        return NP_INF
+
 def calc_sssp(PartitionID,
               IterationNum,
               DataInfo,
@@ -120,23 +128,32 @@ def calc_sssp(PartitionID,
               Dtype_All):
     EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexData = DataInfo['VertexData'][start_id:end_id]
-    UpdatedVertex = VertexData.copy()
     VertexVersion = DataInfo['VertexVersion']
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
 
     if len(ActiveVertex) == 0:
+        UpdatedVertex = VertexData.copy()
         return UpdatedVertex, start_id, end_id
     if IterationNum == 0 and start_id != 0:
+        UpdatedVertex = VertexData.copy()
         return UpdatedVertex, start_id, end_id
     if IterationNum == 0 and start_id == 0:
+        UpdatedVertex = VertexData.copy()
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    for i in xrange(EdgeMatrix.shape[0]):
-        NzVertex = EdgeMatrix.indices[EdgeMatrix.indptr[i]:EdgeMatrix.indptr[i+1]]
-        InterVertex = np.intersect1d(NzVertex, ActiveVertex, assume_unique=True)
-        if len(InterVertex) > 0:
-            UpdatedVertex[i] = min(DataInfo['VertexData'][InterVertex].min() + 1, VertexData[i])
+    UpdatedVertex = map(partial(Update_SSSP,
+                      indices=EdgeMatrix.indices,
+                      indptr=EdgeMatrix.indptr,
+                      ActiveVertex=ActiveVertex), range(EdgeMatrix.shape[0]))
+    UpdatedVertex = np.array(UpdatedVertex, dtype=Dtype_All['VertexData'])
+
+    # for i in xrange(EdgeMatrix.shape[0]):
+    #     NzVertex = EdgeMatrix.indices[EdgeMatrix.indptr[i]:EdgeMatrix.indptr[i+1]]
+    #     InterVertex = np.intersect1d(NzVertex, ActiveVertex, assume_unique=True)
+    #     if len(InterVertex) > 0:
+    #         UpdatedVertex[i] = min(DataInfo['VertexData'][InterVertex].min() + 1, VertexData[i])
+    UpdatedVertex = np.minimum(UpdatedVertex, VertexData)
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex, start_id, end_id
 
