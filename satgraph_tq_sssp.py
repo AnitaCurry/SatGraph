@@ -120,41 +120,39 @@ def calc_sssp(PartitionID,
               Dtype_All):
     EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexData = DataInfo['VertexData'][start_id:end_id]
-    MaxVersion = DataInfo['VertexVersion'].max()
+    VertexVersion = DataInfo['VertexVersion']
     UpdatedVertex = VertexData.copy()
-    a = time.time()
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
-    b = time.time()
-    print "!!!", b-a
 
-    if MaxVersion < IterationNum:
+    if len(ActiveVertex) == 0:
         return UpdatedVertex, start_id, end_id
     if IterationNum == 0 and start_id != 0:
         return UpdatedVertex, start_id, end_id
     if IterationNum == 0 and start_id == 0:
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
+    
+    ActiveVertex = np.intersect1d(ActiveVertex, EdgeMatrix.indices)
+    if len(ActiveVertex) == 0:
+        return UpdatedVertex, start_id, end_id
 
-    a = time.time()
-    TmpVertex_data =  DataInfo['VertexData'][ActiveVertex] + 1
-    TmpVertex_indices = ActiveVertex
-    TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
-    encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
-    encoded_shape = (1, GraphInfo['VertexNum'])
-    TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
-    b= time.time()
-    print "@@@", b-a
+    
+    # TmpVertex_data =  DataInfo['VertexData'][ActiveVertex] + 1
+    # TmpVertex_indices = ActiveVertex
+    # TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
+    # encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
+    # encoded_shape = (1, GraphInfo['VertexNum'])
+    # TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
 
-    a = time.time()
-    EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
+    TmpVertex = np.zeros(EdgeMatrix.shape[1])
+    TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
+    TmpVertex = sparse.dia_matrix((TmpVertex, [0]), shape=(len(TmpVertex), len(TmpVertex)))
+    EdgeMatrix = EdgeMatrix._mul_sparse_matrix(TmpVertex)
+
+    # EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
+    
     EdgeMatrix.sum_duplicates()
-    b = time.time()
-    print "###", b-a
-
-    a = time.time()
     ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
-    b = time.time()
-    print "$$$", b-a
 
     del EdgeMatrix
     del TmpVertex
@@ -165,7 +163,7 @@ def calc_sssp(PartitionID,
     UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
 
-
+    # print "$$$", b-a
     # EdgeMatrix = EdgeMatrix.multiply(sparse.csr_matrix(DataInfo['VertexData']+1))
     # EdgeMatrix.sum_duplicates()
     # ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
@@ -695,7 +693,7 @@ class satgraph():
 
 if __name__ == '__main__':
     mkl_rt = ctypes.CDLL('libmkl_rt.so')
-    mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(4)))
+    mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(1)))
 
     Dtype_VertexData = np.uint16
     Dtype_VertexEdgeInfo = np.int32
@@ -706,9 +704,9 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    # DataPath = '/home/mapred/GraphData/uk/edge3/'
-    # VertexNum = 787803000
-    # PartitionNum = 2379
+    DataPath = '/home/mapred/GraphData/uk/edge3/'
+    VertexNum = 787803000
+    PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/uk/edge2/'
     # VertexNum = 787803000
@@ -718,9 +716,9 @@ if __name__ == '__main__':
     # VertexNum = 4847571
     # PartitionNum = 14
 
-    DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    VertexNum = 41652250
-    PartitionNum = 294
+    # DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    # VertexNum = 41652250
+    # PartitionNum = 294
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
@@ -733,7 +731,7 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(5)
+    test_graph.set_ThreadNum(6)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(1)
     test_graph.set_FilterThreshold(0)
