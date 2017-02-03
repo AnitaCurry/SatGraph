@@ -132,8 +132,8 @@ def calc_sssp(PartitionID,
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    for i in xrange(len(EdgeMatrix.shape[0])):
-        NzVertex = EdgeMatrix.indices[EdgeMatrix.indptr[i],EdgeMatrix.indptr[i+1]]
+    for i in xrange(EdgeMatrix.shape[0]):
+        NzVertex = EdgeMatrix.indices[EdgeMatrix.indptr[i]:EdgeMatrix.indptr[i+1]]
         InterVertex = np.intersect1d(NzVertex, ActiveVertex, assume_unique=True)
         if len(InterVertex) > 0:
             UpdatedVertex[i] = min(DataInfo['VertexData'][InterVertex].min() + 1, VertexData[i])
@@ -671,9 +671,9 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    DataPath = '/home/mapred/GraphData/uk/edge3/'
-    VertexNum = 787803000
-    PartitionNum = 2379
+    # DataPath = '/home/mapred/GraphData/uk/edge3/'
+    # VertexNum = 787803000
+    # PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/uk/edge2/'
     # VertexNum = 787803000
@@ -683,9 +683,9 @@ if __name__ == '__main__':
     # VertexNum = 4847571
     # PartitionNum = 14
 
-    # DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    # VertexNum = 41652250
-    # PartitionNum = 294
+    DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    VertexNum = 41652250
+    PartitionNum = 294
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
@@ -698,7 +698,7 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(2)
+    test_graph.set_ThreadNum(7)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(1)
     test_graph.set_FilterThreshold(0)
