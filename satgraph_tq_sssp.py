@@ -122,7 +122,10 @@ def calc_sssp(PartitionID,
     VertexData = DataInfo['VertexData'][start_id:end_id]
     MaxVersion = DataInfo['VertexVersion'].max()
     UpdatedVertex = VertexData.copy()
-    # ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
+    a = time.time()
+    ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
+    b = time.time()
+    print "!!!", b-a
 
     if MaxVersion < IterationNum:
         return UpdatedVertex, start_id, end_id
@@ -132,12 +135,44 @@ def calc_sssp(PartitionID,
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    EdgeMatrix = EdgeMatrix.multiply(sparse.csr_matrix(DataInfo['VertexData']+1))
+    a = time.time()
+    TmpVertex_data =  DataInfo['VertexData'][ActiveVertex] + 1
+    TmpVertex_indices = ActiveVertex
+    TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
+    encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
+    encoded_shape = (1, GraphInfo['VertexNum'])
+    TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
+    b= time.time()
+    print "@@@", b-a
+
+    a = time.time()
+    EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
     EdgeMatrix.sum_duplicates()
+    b = time.time()
+    print "###", b-a
+
+    a = time.time()
     ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
+    b = time.time()
+    print "$$$", b-a
+
     del EdgeMatrix
+    del TmpVertex
+
+    if len(ChangedIndex) == 0:
+        return UpdatedVertex, start_id, end_id
+
     UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+
+
+    # EdgeMatrix = EdgeMatrix.multiply(sparse.csr_matrix(DataInfo['VertexData']+1))
+    # EdgeMatrix.sum_duplicates()
+    # ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
+    # del EdgeMatrix
+    # UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
+    # UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+
     return UpdatedVertex, start_id, end_id
 
 
