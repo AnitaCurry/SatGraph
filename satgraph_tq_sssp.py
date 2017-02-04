@@ -7,15 +7,15 @@ import os
 import time
 import numpy as np
 import scipy.sparse as sparse
-from mpi4py import MPI
 import threading
 import Queue
 import zmq
 import snappy
-from numpy import linalg as LA
-from functools import partial
 import ctypes
 import gc
+import numpy.ctypeslib as npct
+from numpy import linalg as LA
+from mpi4py import MPI
 
 SLEEP_TIME = 0.5
 STOP = False
@@ -24,6 +24,45 @@ BSP = True
 # BSP = False
 LOG_PROGRESS = False
 NP_INF = 10**4
+
+PATH = /home/mapred/share/SatGraph/lib
+array_1d_int32 = npct.ndpointer(dtype=np.int32, ndim=1, flags='CONTIGUOUS')
+array_1d_float = npct.ndpointer(dtype=np.float32, ndim=1, flags='CONTIGUOUS')
+libsatgraph = npct.load_library("libsatgraph", PATH)
+
+
+# void multiply_min_float (int32_t * indices,        // sparse matrix indices
+#                          int32_t * indptr,         // sparse matrix indptr
+#                          int32_t   size_indptr,    // size of indptr
+#                          int32_t * vertex_id,      // changed vertex (row) id
+#                          float   * vertex_value,   // changed vertex (row) val
+#                          int32_t   size_vertex,    // size of changed vertex
+#                          float   * value) {        // vertex value of this matrix
+libsatgraph.multiply_min_float.restype = None
+libsatgraph.multiply_min_float.argtypes = [array_1d_int32,
+                                           array_1d_int32,
+                                           ctypes.c_int32,
+                                           array_1d_int32,
+                                           array_1d_float,
+                                           ctypes.c_int32,
+                                           array_1d_float]
+
+# void dot_product_float(int32_t * indices,           // sparse matrix indices
+#                        int32_t * indptr,            // sparse matrix indptr
+#                        int32_t   size_indptr,       // size of indptr
+#                        int32_t * act_vertex_id,     // active vertex ids (col)
+#                        int32_t   size_act_vertex,   // size of active vertex
+#                        float   * vertex,            // vertex data
+#                        float   * value) {           // results
+libsatgraph.dot_product_float.restype = None
+libsatgraph.dot_product_float.argtypes = [array_1d_int32,
+                                          array_1d_int32,
+                                          ctypes.c_int32,
+                                          array_1d_int32,
+                                          ctypes.c_int32,
+                                          array_1d_float,
+                                          array_1d_float]
+
 
 def intial_vertex(GraphInfo,
                   Dtype_All,
@@ -132,29 +171,34 @@ def calc_sssp(PartitionID,
     if IterationNum == 0 and start_id == 0:
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
-    ActiveVertex = np.intersect1d(ActiveVertex, EdgeMatrix.indices)
-    if len(ActiveVertex) == 0:
-        return UpdatedVertex, start_id, end_id
 
-    # TmpVertex_data =  DataInfo['VertexData'][ActiveVertex] + 1
-    # TmpVertex_indices = ActiveVertex
-    # TmpVertex_indptr = np.array([0, len(ActiveVertex)], dtype=Dtype_All['VertexEdgeInfo'])
-    # encoded_data = (TmpVertex_data, TmpVertex_indices, TmpVertex_indptr)
-    # encoded_shape = (1, GraphInfo['VertexNum'])
-    # TmpVertex = sparse.csr_matrix(encoded_data, shape=encoded_shape)
-    TmpVertex = np.zeros(EdgeMatrix.shape[1])
-    TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
-    TmpVertex = sparse.dia_matrix((TmpVertex, [0]), shape=(len(TmpVertex), len(TmpVertex)))
-    EdgeMatrix = EdgeMatrix._mul_sparse_matrix(TmpVertex)
-    # EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
+    # ActiveVertex = np.intersect1d(ActiveVertex, EdgeMatrix.indices)
+    # if len(ActiveVertex) == 0:
+    #     return UpdatedVertex, start_id, end_id
 
-    EdgeMatrix.sum_duplicates()
-    ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
-    del EdgeMatrix
-    del TmpVertex
-    if len(ChangedIndex) == 0:
-        return UpdatedVertex, start_id, end_id
-    UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
+    TmpVertex = DataInfo['VertexData'][ActiveVertex] + 1
+    libsatgraph.multiply_min_float(EdgeMatrix.indices,
+                                   EdgeMatrix.indptr,
+                                   len(EdgeMatrix.indptr),
+                                   ActiveVertex,
+                                   TmpVertex,
+                                   len(ActiveVertex),
+                                   UpdatedVertex)
+
+    # TmpVertex = np.zeros(EdgeMatrix.shape[1])
+    # TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
+    # TmpVertex = sparse.dia_matrix((TmpVertex, [0]), shape=(len(TmpVertex), len(TmpVertex)))
+    # EdgeMatrix = EdgeMatrix._mul_sparse_matrix(TmpVertex)
+    # # EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
+    # EdgeMatrix.sum_duplicates()
+    # ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
+
+    # del EdgeMatrix
+    # del TmpVertex
+    # if len(ChangedIndex) == 0:
+    #     return UpdatedVertex, start_id, end_id
+    # UpdatedVertex[ChangedIndex] = np.minimum(ChangedVertex, VertexData[ChangedIndex])
+
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     return UpdatedVertex, start_id, end_id
 
@@ -232,8 +276,8 @@ class BroadThread(threading.Thread):
             return -1
         UpdatedVertex = snappy.decompress(UpdatedVertex)
         UpdatedVertex = np.fromstring(UpdatedVertex, dtype=self.__Dtype_All['VertexData'])
-        start_id = np.uint16(UpdatedVertex[-4]) * 65000 + np.uint16(UpdatedVertex[-3])
-        end_id = np.uint16(UpdatedVertex[-2]) * 65000 + np.uint16(UpdatedVertex[-1])
+        start_id = int(UpdatedVertex[-4]) * 100000 + int(UpdatedVertex[-3])
+        end_id = int(UpdatedVertex[-2]) * 100000 + int(UpdatedVertex[-1])
 
         if not BSP:
             self.update_SSP(UpdatedVertex, start_id, end_id)
@@ -373,10 +417,10 @@ class CalcThread(threading.Thread):
             UpdatedVertex[filterd_id] = 0
             UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData'])
             UpdatedVertex = np.append(UpdatedVertex, i)
-            UpdatedVertex = np.append(UpdatedVertex, np.uint16(start_id / 65000))
-            UpdatedVertex = np.append(UpdatedVertex, start_id % 65000)
-            UpdatedVertex = np.append(UpdatedVertex, np.uint16(end_id / 65000))
-            UpdatedVertex = np.append(UpdatedVertex, end_id % 65000)
+            UpdatedVertex = np.append(UpdatedVertex, int(start_id / 100000))
+            UpdatedVertex = np.append(UpdatedVertex, start_id % 100000)
+            UpdatedVertex = np.append(UpdatedVertex, int(end_id / 100000))
+            UpdatedVertex = np.append(UpdatedVertex, end_id % 100000)
             UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData'])
 
             UpdatedVertex = UpdatedVertex.tostring()
@@ -683,10 +727,10 @@ class satgraph():
                              TaskThreadPool)
 
 if __name__ == '__main__':
-    mkl_rt = ctypes.CDLL('libmkl_rt.so')
-    mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(1)))
+    # mkl_rt = ctypes.CDLL('libmkl_rt.so')
+    # mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(1)))
 
-    Dtype_VertexData = np.uint16
+    Dtype_VertexData = np.float32
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
