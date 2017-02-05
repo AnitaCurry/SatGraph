@@ -12,7 +12,7 @@ void multiply_min_float (int32_t * indices,        // sparse matrix indices
   int32_t j   = 0;
   int32_t k   = 0;
   int32_t tmp = 0;
-  int32_t min = 0;
+  float   min = 0;
 
   for (; i < size_indptr-1; i++) {
     min = value[i];
@@ -24,9 +24,8 @@ void multiply_min_float (int32_t * indices,        // sparse matrix indices
         if (tmp < vertex_id[k]) 
           break;
         if (tmp == vertex_id[k]) {
-          if (min < vertex_value[k])
+          if (min > vertex_value[k])
             min = vertex_value[k];
-          k++;
           break;
         }
       }

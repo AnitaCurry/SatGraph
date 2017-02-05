@@ -24,11 +24,10 @@ BSP = True
 # BSP = False
 LOG_PROGRESS = False
 NP_INF = 10**4
-
-PATH = /home/mapred/share/SatGraph/lib
+LIB_PATH = '/home/mapred/share/SatGraph/lib'
 array_1d_int32 = npct.ndpointer(dtype=np.int32, ndim=1, flags='CONTIGUOUS')
 array_1d_float = npct.ndpointer(dtype=np.float32, ndim=1, flags='CONTIGUOUS')
-libsatgraph = npct.load_library("libsatgraph", PATH)
+libsatgraph = npct.load_library("libsatgraph", LIB_PATH)
 
 
 # void multiply_min_float (int32_t * indices,        // sparse matrix indices
@@ -163,6 +162,7 @@ def calc_sssp(PartitionID,
     VertexVersion = DataInfo['VertexVersion']
     UpdatedVertex = VertexData.copy()
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
+    ActiveVertex = ActiveVertex.astype(np.int32)
 
     if len(ActiveVertex) == 0:
         return UpdatedVertex, start_id, end_id
@@ -172,10 +172,10 @@ def calc_sssp(PartitionID,
         UpdatedVertex[0] = 0
         return UpdatedVertex, start_id, end_id
 
-    # ActiveVertex = np.intersect1d(ActiveVertex, EdgeMatrix.indices)
-    # if len(ActiveVertex) == 0:
-    #     return UpdatedVertex, start_id, end_id
-
+    ActiveVertex = np.intersect1d(ActiveVertex, EdgeMatrix.indices)
+    if len(ActiveVertex) == 0:
+        return UpdatedVertex, start_id, end_id
+    
     TmpVertex = DataInfo['VertexData'][ActiveVertex] + 1
     libsatgraph.multiply_min_float(EdgeMatrix.indices,
                                    EdgeMatrix.indptr,
@@ -681,6 +681,7 @@ class satgraph():
             app_start_time = time.time()
             log_start_time = time.time()
         Iteration = 0
+        global STOP
 
         while True:
             NewIteration, CurrentIteration = self.graph_process(Iteration)
@@ -739,9 +740,9 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    DataPath = '/home/mapred/GraphData/uk/edge3/'
-    VertexNum = 787803000
-    PartitionNum = 2379
+    # DataPath = '/home/mapred/GraphData/uk/edge3/'
+    # VertexNum = 787803000
+    # PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/uk/edge2/'
     # VertexNum = 787803000
@@ -751,9 +752,9 @@ if __name__ == '__main__':
     # VertexNum = 4847571
     # PartitionNum = 14
 
-    # DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    # VertexNum = 41652250
-    # PartitionNum = 294
+    DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    VertexNum = 41652250
+    PartitionNum = 294
 
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
