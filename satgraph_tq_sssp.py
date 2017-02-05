@@ -17,11 +17,11 @@ import numpy.ctypeslib as npct
 from numpy import linalg as LA
 from mpi4py import MPI
 
-SLEEP_TIME = 0.5
+SLEEP_TIME = 0.1
 STOP = False
 QueueUpdatedVertex = Queue.Queue()
-BSP = True
-# BSP = False
+# BSP = True
+BSP = False
 LOG_PROGRESS = False
 NP_INF = 10**4
 LIB_PATH = '/home/mapred/share/SatGraph/lib'
@@ -29,38 +29,47 @@ array_1d_int32 = npct.ndpointer(dtype=np.int32, ndim=1, flags='CONTIGUOUS')
 array_1d_float = npct.ndpointer(dtype=np.float32, ndim=1, flags='CONTIGUOUS')
 libsatgraph = npct.load_library("libsatgraph", LIB_PATH)
 
-
-# void multiply_min_float (int32_t * indices,        // sparse matrix indices
+libsatgraph.multiply_float.restype = None
+libsatgraph.multiply_float.argtypes = [ctypes.c_int32,
+                                       array_1d_float,
+                                       array_1d_float]
+                                   
+libsatgraph.divide_float_int32.restype = None
+libsatgraph.divide_float_int32.argtypes = [ctypes.c_int32,
+                                           array_1d_float,
+                                           array_1d_int32]
+ 
+# void ssp_min_float (int32_t * indices,        // sparse matrix indices
 #                          int32_t * indptr,         // sparse matrix indptr
 #                          int32_t   size_indptr,    // size of indptr
 #                          int32_t * vertex_id,      // changed vertex (row) id
 #                          float   * vertex_value,   // changed vertex (row) val
 #                          int32_t   size_vertex,    // size of changed vertex
 #                          float   * value) {        // vertex value of this matrix
-libsatgraph.multiply_min_float.restype = None
-libsatgraph.multiply_min_float.argtypes = [array_1d_int32,
-                                           array_1d_int32,
-                                           ctypes.c_int32,
-                                           array_1d_int32,
-                                           array_1d_float,
-                                           ctypes.c_int32,
-                                           array_1d_float]
+libsatgraph.ssp_min_float.restype = None
+libsatgraph.ssp_min_float.argtypes = [array_1d_int32,
+                                      array_1d_int32,
+                                      ctypes.c_int32,
+                                      array_1d_float,
+                                      array_1d_float]
 
-# void dot_product_float(int32_t * indices,           // sparse matrix indices
+# void pr_dot_product_float(int32_t * indices,           // sparse matrix indices
 #                        int32_t * indptr,            // sparse matrix indptr
 #                        int32_t   size_indptr,       // size of indptr
 #                        int32_t * act_vertex_id,     // active vertex ids (col)
 #                        int32_t   size_act_vertex,   // size of active vertex
 #                        float   * vertex,            // vertex data
-#                        float   * value) {           // results
-libsatgraph.dot_product_float.restype = None
-libsatgraph.dot_product_float.argtypes = [array_1d_int32,
-                                          array_1d_int32,
-                                          ctypes.c_int32,
-                                          array_1d_int32,
-                                          ctypes.c_int32,
-                                          array_1d_float,
-                                          array_1d_float]
+#                        float   * value,             // results
+#                        int32_t   vertex_num
+libsatgraph.pr_dot_product_float.restype = None
+libsatgraph.pr_dot_product_float.argtypes = [array_1d_int32,
+                                             array_1d_int32,
+                                             ctypes.c_int32,
+                                             array_1d_int32,
+                                             ctypes.c_int32,
+                                             array_1d_float,
+                                             array_1d_float,
+                                             ctypes.c_int32]
 
 
 def intial_vertex(GraphInfo,
@@ -84,6 +93,25 @@ def intial_vertex(GraphInfo,
         return temp
     else:
         return np.ones(GraphInfo['VertexNum'], dtype=Dtype_All[0])
+
+
+def load_edgedata_nodata(PartitionID,
+                         GraphInfo,
+                         Dtype_All):
+    edge_path = GraphInfo['DataPath'] + str(PartitionID) + '.edge'
+    _file = open(edge_path, 'r')
+    temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
+    # data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
+    indices = temp[5:5 + int(temp[1])]
+    indptr = temp[5 + int(temp[1]):5 + int(temp[1]) + int(temp[2])]
+    start_id = int(temp[3])
+    end_id = int(temp[4])
+
+    # encoded_data = (data, indices, indptr)
+    # encoded_shape = (end_id - start_id, GraphInfo['VertexNum'])
+    # mat_data = sparse.csr_matrix(encoded_data, shape=encoded_shape)
+    _file.close()
+    return indices, indptr, end_id-start_id, GraphInfo['VertexNum'], start_id, end_id
 
 
 def load_edgedata(PartitionID,
@@ -127,16 +155,45 @@ def calc_pagerank(PartitionID,
                   DataInfo,
                   GraphInfo,
                   Dtype_All):
+    # '''
+    indices, indptr, shape_0, shape_1, start_id, end_id = \
+        load_edgedata_nodata(PartitionID, GraphInfo, Dtype_All)
+
+    VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
+    ActiveVertex = np.where(VertexVersion >= (IterationNum - 3))[0]
+    ActiveVertex = ActiveVertex.astype(np.int32)
+    UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
+    if len(ActiveVertex) == 0:
+        return UpdatedVertex, start_id, end_id
+    NormlizedVertex = DataInfo['VertexData'].copy()
+    libsatgraph.divide_float_int32(len(NormlizedVertex), NormlizedVertex, DataInfo['VertexOut'])
+    # NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
+    # NormlizedVertex = NormlizedVertex.astype(np.float32)
+    libsatgraph.pr_dot_product_float(indices,
+                                     indptr,
+                                     len(indptr),
+                                     ActiveVertex,
+                                     len(ActiveVertex),
+                                     NormlizedVertex,
+                                     UpdatedVertex,
+                                     shape_1)
+   #  UpdatedVertex[ActiveVertex] *= 0.85
+   #  UpdatedVertex[ActiveVertex] += 1.0 / GraphInfo['VertexNum']
+    UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
+
+    del indptr, indices
+    # '''
+    '''
     EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
     ActiveVertex = np.where(VertexVersion >= (IterationNum - 3))[0]
-    # DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
+    DeactiveVertex = np.where(VertexVersion < (IterationNum-3))[0]
 
     UpdatedVertex = np.zeros(end_id - start_id, dtype=Dtype_All['VertexData'])
     if len(ActiveVertex) == 0:
         UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         return UpdatedVertex, start_id, end_id
-
+    
     if len(ActiveVertex) <= 10:
         UpdatedVertex[:] = DataInfo['VertexData'][start_id:end_id][:]
         EdgeMatrix = EdgeMatrix[ActiveVertex]
@@ -147,43 +204,41 @@ def calc_pagerank(PartitionID,
         NormlizedVertex = DataInfo['VertexData'] / DataInfo['VertexOut']
         UpdatedVertex = EdgeMatrix.dot(NormlizedVertex) * 0.85
         UpdatedVertex += 1.0 / GraphInfo['VertexNum']
-
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
     del EdgeMatrix
+    '''
+
     return UpdatedVertex, start_id, end_id
 
 def calc_sssp(PartitionID,
               IterationNum,
               DataInfo,
               GraphInfo,
-              Dtype_All):
-    EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
+              Dtype_All):         
+    if IterationNum == 0 and PartitionID != 0:
+        return np.array([], dtype=Dtype_All['VertexData']), 0, 0
+    if IterationNum == 0 and PartitionID == 0:
+        return np.array([0], dtype=Dtype_All['VertexData']), 0, 1
+
+    # EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
+    indices, indptr, shape_0, shape_1, start_id, end_id = \
+        load_edgedata_nodata(PartitionID, GraphInfo, Dtype_All)
     VertexData = DataInfo['VertexData'][start_id:end_id]
-    VertexVersion = DataInfo['VertexVersion']
     UpdatedVertex = VertexData.copy()
+    VertexVersion = DataInfo['VertexVersion']
     ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
     ActiveVertex = ActiveVertex.astype(np.int32)
-
     if len(ActiveVertex) == 0:
         return UpdatedVertex, start_id, end_id
-    if IterationNum == 0 and start_id != 0:
-        return UpdatedVertex, start_id, end_id
-    if IterationNum == 0 and start_id == 0:
-        UpdatedVertex[0] = 0
-        return UpdatedVertex, start_id, end_id
 
-    ActiveVertex = np.intersect1d(ActiveVertex, EdgeMatrix.indices)
-    if len(ActiveVertex) == 0:
-        return UpdatedVertex, start_id, end_id
-    
-    TmpVertex = DataInfo['VertexData'][ActiveVertex] + 1
-    libsatgraph.multiply_min_float(EdgeMatrix.indices,
-                                   EdgeMatrix.indptr,
-                                   len(EdgeMatrix.indptr),
-                                   ActiveVertex,
-                                   TmpVertex,
-                                   len(ActiveVertex),
-                                   UpdatedVertex)
+    TmpVertex = np.full(shape_1, np.inf, dtype=np.float32)
+    TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
+    libsatgraph.ssp_min_float(indices,
+                              indptr,
+                              len(indptr),
+                              TmpVertex,
+                              UpdatedVertex)
+    del indptr, indices
 
     # TmpVertex = np.zeros(EdgeMatrix.shape[1])
     # TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
@@ -192,7 +247,6 @@ def calc_sssp(PartitionID,
     # # EdgeMatrix = EdgeMatrix.multiply(TmpVertex)
     # EdgeMatrix.sum_duplicates()
     # ChangedIndex, ChangedVertex = EdgeMatrix._minor_reduce(np.minimum)
-
     # del EdgeMatrix
     # del TmpVertex
     # if len(ChangedIndex) == 0:
@@ -413,8 +467,7 @@ class CalcThread(threading.Thread):
                                                self.__GraphInfo,
                                                self.__Dtype_All)
             UpdatedVertex -= self.__DataInfo['VertexData'][start_id:end_id]
-            filterd_id = np.where(abs(UpdatedVertex) < self.__ControlInfo['FilterThreshold'])
-            UpdatedVertex[filterd_id] = 0
+            UpdatedVertex[np.abs(UpdatedVertex) < self.__ControlInfo['FilterThreshold']] = 0
             UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData'])
             UpdatedVertex = np.append(UpdatedVertex, i)
             UpdatedVertex = np.append(UpdatedVertex, int(start_id / 100000))
@@ -710,7 +763,7 @@ class satgraph():
                         ' # Iter: ',\
                          CurrentIteration, \
                          '->', diff_vertex
-                if diff_vertex == 0:
+                if diff_vertex == 0 and CurrentIteration > 5:
                     STOP = True
                 Old_Vertex_[:] = self.__DataInfo['VertexData'][:]
                 start_time = time.time()
@@ -728,9 +781,9 @@ class satgraph():
                              TaskThreadPool)
 
 if __name__ == '__main__':
-    # mkl_rt = ctypes.CDLL('libmkl_rt.so')
-    # mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(1)))
 
+    mkl_rt = ctypes.CDLL('libmkl_rt.so')
+    mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(2)))
     Dtype_VertexData = np.float32
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
@@ -767,11 +820,13 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(6)
+    test_graph.set_ThreadNum(5)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(1)
-    test_graph.set_FilterThreshold(0)
-    test_graph.set_CalcFunc(calc_sssp)
+    test_graph.set_FilterThreshold(1.0*10**-9)
+    # test_graph.set_CalcFunc(calc_sssp)
+    test_graph.set_CalcFunc(calc_pagerank)
     MPI.COMM_WORLD.Barrier()
-    test_graph.run('inf')
+    # test_graph.run('inf')
+    test_graph.run('pagerank')
     os._exit(0)
