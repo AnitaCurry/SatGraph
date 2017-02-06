@@ -551,12 +551,13 @@ class SchedulerThread(threading.Thread):
                     socket.send("-1")
                 else:
                     target_partition = candicate_partition[target_ids]
-                    target_locality = LocalityInfo[rank][target_partition]
+                    target_locality = \
+                        LocalityInfo[self.__ControlInfo['Hosts'][rank]][target_partition]
                     max_allocate = target_locality.argmax()
                     target_partition = target_partition[max_allocate]
                     # self.__ControlInfo['IterationNum']
                     AllTask[target_partition] += 1
-                    LocalityInfo[rank][target_partition] += 1
+                    LocalityInfo[self.__ControlInfo['Hosts'][rank]][target_partition] += 1
                     socket.send(str(target_partition))
         else:
             socket.send("-1")
@@ -570,7 +571,10 @@ class SchedulerThread(threading.Thread):
         AllTask = np.zeros(self.__GraphInfo['PartitionNum'], dtype=np.int32)
         AllProgress = self.__ControlInfo['IterationReport']
         LocalityInfo = {}
-        for i in range(MPI.COMM_WORLD.Get_size()):
+        # for i in xrange(MPI.COMM_WORLD.Get_size()):
+        all_hosts = self.__ControlInfo['Hosts']
+        all_hosts = list(set(all_hosts))
+        for i in all_hosts:
             LocalityInfo[i] = np.zeros(self.__GraphInfo['PartitionNum'],
                                        dtype=np.int32)
 
@@ -617,6 +621,7 @@ class satgraph():
         self.__ControlInfo['FilterThreshold'] = 0
         self.__ControlInfo['CalcFunc'] = None
         self.__ControlInfo['Sync'] = 'BSP'
+        self.__ControlInfo['Hosts'] = None
         self.__DataInfo['EdgeData'] = {}
         self.__DataInfo['VertexOut'] = None
         self.__DataInfo['VertexIn'] = None
@@ -640,6 +645,9 @@ class satgraph():
 
     def set_Sync(self, Sync):
         self.__ControlInfo['Sync'] = Sync
+
+    def set_Hosts(self, Hosts):
+        self.__ControlInfo['Hosts'] = Hosts
 
     def set_MaxIteration(self, MaxIteration):
         self.__ControlInfo['MaxIteration'] = MaxIteration
@@ -812,9 +820,9 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    DataPath = '/home/mapred/GraphData/uk/edge3/'
-    VertexNum = 787803000
-    PartitionNum = 2379
+    # DataPath = '/home/mapred/GraphData/uk/edge3/'
+    # VertexNum = 787803000
+    # PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/uk/edge2/'
     # VertexNum = 787803000
@@ -824,16 +832,21 @@ if __name__ == '__main__':
     # VertexNum = 4847571
     # PartitionNum = 14
 
-    # DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    # VertexNum = 41652250
-    # PartitionNum = 294
+    DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    VertexNum = 41652250
+    PartitionNum = 294
     
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
+
     rank_0_host = None
     if MPI.COMM_WORLD.Get_rank() == 0:
         rank_0_host = MPI.Get_processor_name()
     rank_0_host = MPI.COMM_WORLD.bcast(rank_0_host, root=0)
+    all_hosts = MPI.Get_processor_name()
+    all_hosts = MPI.COMM_WORLD.gather(all_hosts, root=0)
+    if MPI.COMM_WORLD.Get_rank() == 0:
+        test_graph.set_Hosts(all_hosts)
 
     test_graph.set_Dtype_All(Dtype_All)
     test_graph.set_Sync('BSP')
