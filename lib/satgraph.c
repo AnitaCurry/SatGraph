@@ -39,12 +39,12 @@ void ssp_min_float (int32_t * indices,        // sparse matrix indices
   float   min = 0;
   omp_set_dynamic(0);
   omp_set_num_threads(OMPNUM);
-#pragma omp parallel for private(j, tmp, min) schedule(static)
+#pragma omp parallel for private(j, tmp, min) schedule(dynamic, 10000)
   for (i = 0; i < size_indptr-1; i++) {
     min = value[i];
     for (j = 0; j < indptr[i+1] - indptr[i]; j++) {
       tmp = indices[indptr[i] + j];
-      if (min > vertex_value[tmp])
+      if (min > vertex_value[tmp] + 1)
         min = vertex_value[tmp];
     }
     value[i] = min;
@@ -66,7 +66,7 @@ void pr_dot_product_float(int32_t * indices,           // sparse matrix indices
   float   rel = 0;
   omp_set_dynamic(0);
   omp_set_num_threads(OMPNUM);
-#pragma omp parallel for private(k, tmp, rel) schedule(dynamic)
+#pragma omp parallel for private(k, tmp, rel) schedule(dynamic, 10000)
   for (i=0; i < size_act_vertex; i++) {
     rel = 0;
     for (k = 0; k < indptr[act_vertex_id[i]+1] - indptr[act_vertex_id[i]]; k++) {

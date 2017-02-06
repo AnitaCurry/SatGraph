@@ -20,8 +20,6 @@ from mpi4py import MPI
 SLEEP_TIME = 0.1
 STOP = False
 QueueUpdatedVertex = Queue.Queue()
-# BSP = True
-BSP = False
 LOG_PROGRESS = False
 NP_INF = 10**4
 LIB_PATH = '/home/mapred/share/SatGraph/lib'
@@ -160,8 +158,16 @@ def calc_pagerank(PartitionID,
         load_edgedata_nodata(PartitionID, GraphInfo, Dtype_All)
 
     VertexVersion = DataInfo['VertexVersion'][start_id:end_id]
+
+    '''
+    if IterationNum <= 10:
+        ActiveVertex = np.array(range(end_id-start_id))
+    else:
+        ActiveVertex = np.where(VertexVersion >= (IterationNum - 3))[0]
+    '''
     ActiveVertex = np.where(VertexVersion >= (IterationNum - 3))[0]
     ActiveVertex = ActiveVertex.astype(np.int32)
+
     UpdatedVertex = DataInfo['VertexData'][start_id:end_id].copy()
     if len(ActiveVertex) == 0:
         return UpdatedVertex, start_id, end_id
@@ -215,28 +221,33 @@ def calc_sssp(PartitionID,
               DataInfo,
               GraphInfo,
               Dtype_All):         
-    if IterationNum == 0 and PartitionID != 0:
-        return np.array([], dtype=Dtype_All['VertexData']), 0, 0
-    if IterationNum == 0 and PartitionID == 0:
-        return np.array([0], dtype=Dtype_All['VertexData']), 0, 1
 
     # EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     indices, indptr, shape_0, shape_1, start_id, end_id = \
         load_edgedata_nodata(PartitionID, GraphInfo, Dtype_All)
+
+    if IterationNum == 0 and PartitionID != 0:
+        return np.array([], dtype=Dtype_All['VertexData']), 0, 0
+    if IterationNum == 0 and PartitionID == 0:
+        # return np.array([0], dtype=Dtype_All['VertexData']), 727628347, 727628348
+        return np.array([0], dtype=Dtype_All['VertexData']), 0, 1
+
     VertexData = DataInfo['VertexData'][start_id:end_id]
     UpdatedVertex = VertexData.copy()
-    VertexVersion = DataInfo['VertexVersion']
-    ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
-    ActiveVertex = ActiveVertex.astype(np.int32)
-    if len(ActiveVertex) == 0:
-        return UpdatedVertex, start_id, end_id
+    
+    # VertexVersion = DataInfo['VertexVersion']
+    # ActiveVertex = np.where(VertexVersion >= IterationNum)[0]
+    # ActiveVertex = ActiveVertex.astype(np.int32)
+    # if len(ActiveVertex) == 0:
+    #    return UpdatedVertex, start_id, end_id
 
-    TmpVertex = np.full(shape_1, np.inf, dtype=np.float32)
-    TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
+    # TmpVertex = np.full(shape_1, np.inf, dtype=np.float32)
+    # TmpVertex[ActiveVertex] = DataInfo['VertexData'][ActiveVertex] + 1
     libsatgraph.ssp_min_float(indices,
                               indptr,
                               len(indptr),
-                              TmpVertex,
+                              DataInfo['VertexData'],
+                              # TmpVertex,
                               UpdatedVertex)
     del indptr, indices
 
@@ -293,7 +304,11 @@ class BroadThread(threading.Thread):
     def update_BSP(self, updated_vertex, start_id, end_id):
         new_vertex = updated_vertex[0:-5] + self.__DataInfo['VertexData'][start_id:end_id]
         self.__DataInfo['VertexDataNew'][start_id:end_id][:] = new_vertex[:]
-        # update vertex data
+
+        ########################################################################
+        # self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-5] #
+        ########################################################################
+
         i = int(updated_vertex[-5])
         self.__ControlInfo['IterationReport'][i] += 1
 
@@ -333,10 +348,12 @@ class BroadThread(threading.Thread):
         start_id = int(UpdatedVertex[-4]) * 100000 + int(UpdatedVertex[-3])
         end_id = int(UpdatedVertex[-2]) * 100000 + int(UpdatedVertex[-1])
 
-        if not BSP:
+        if self.__ControlInfo['Sync'] == 'SSP':
             self.update_SSP(UpdatedVertex, start_id, end_id)
-        else:
+        elif self.__ControlInfo['Sync'] == 'BSP':
             self.update_BSP(UpdatedVertex, start_id, end_id)
+        else:
+            raise Exception('Not Support Sync Mode')
         MPI.COMM_WORLD.Barrier()
         del UpdatedVertex
         return 1
@@ -437,7 +454,7 @@ class CalcThread(threading.Thread):
     def sync(self):
         if self.__stop.is_set():
             return -1
-        if BSP:
+        if self.__ControlInfo['Sync'] == 'BSP':
             while True:
                 if self.__ControlInfo['IterationNum'] == self.__ControlInfo['IterationReport'].min():
                     break
@@ -525,7 +542,7 @@ class SchedulerThread(threading.Thread):
                 socket.send("-1")
             else:
                 candicate_status = AllTask[candicate_partition]
-                if BSP:
+                if self.__ControlInfo['Sync'] == 'BSP':
                     target_status = self.__ControlInfo['IterationNum']
                 else:
                     target_status = candicate_status.min()
@@ -599,20 +616,20 @@ class satgraph():
         self.__ControlInfo['StaleNum'] = 0
         self.__ControlInfo['FilterThreshold'] = 0
         self.__ControlInfo['CalcFunc'] = None
+        self.__ControlInfo['Sync'] = 'BSP'
         self.__DataInfo['EdgeData'] = {}
         self.__DataInfo['VertexOut'] = None
         self.__DataInfo['VertexIn'] = None
         self.__DataInfo['VertexData'] = None
         self.__DataInfo['VertexVersion'] = None
-        if BSP:
-            self.__DataInfo['VertexDataNew'] = None
+        self.__DataInfo['VertexDataNew'] = None
 
     def set_FilterThreshold(self, FilterThreshold):
         self.__ControlInfo['FilterThreshold'] = FilterThreshold
 
     def set_StaleNum(self, StaleNum):
         self.__ControlInfo['StaleNum'] = StaleNum
-        if BSP:
+        if self.__ControlInfo['Sync'] == 'BSP':
             self.__ControlInfo['StaleNum'] = 1
 
     def set_CalcFunc(self, CalcFunc):
@@ -620,6 +637,9 @@ class satgraph():
 
     def set_ThreadNum(self, ThreadNum):
         self.__ThreadNum = ThreadNum
+
+    def set_Sync(self, Sync):
+        self.__ControlInfo['Sync'] = Sync
 
     def set_MaxIteration(self, MaxIteration):
         self.__ControlInfo['MaxIteration'] = MaxIteration
@@ -722,8 +742,7 @@ class satgraph():
         self.__DataInfo['VertexData'] = intial_vertex(self.__GraphInfo,
                                                       self.__Dtype_All,
                                                       InitialVertex)
-        if BSP:
-            self.__DataInfo['VertexDataNew'] = self.__DataInfo['VertexData'].copy()
+        self.__DataInfo['VertexDataNew'] = self.__DataInfo['VertexData'].copy()
 
         UpdateVertexThread, TaskSchedulerThread, BroadVertexThread, TaskThreadPool = self.create_threads()
 
@@ -793,9 +812,9 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    # DataPath = '/home/mapred/GraphData/uk/edge3/'
-    # VertexNum = 787803000
-    # PartitionNum = 2379
+    DataPath = '/home/mapred/GraphData/uk/edge3/'
+    VertexNum = 787803000
+    PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/uk/edge2/'
     # VertexNum = 787803000
@@ -805,10 +824,10 @@ if __name__ == '__main__':
     # VertexNum = 4847571
     # PartitionNum = 14
 
-    DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    VertexNum = 41652250
-    PartitionNum = 294
-
+    # DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    # VertexNum = 41652250
+    # PartitionNum = 294
+    
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
     rank_0_host = None
@@ -817,13 +836,14 @@ if __name__ == '__main__':
     rank_0_host = MPI.COMM_WORLD.bcast(rank_0_host, root=0)
 
     test_graph.set_Dtype_All(Dtype_All)
+    test_graph.set_Sync('BSP')
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(5)
-    test_graph.set_MaxIteration(50)
-    test_graph.set_StaleNum(1)
-    test_graph.set_FilterThreshold(1.0*10**-9)
+    test_graph.set_MaxIteration(100)
+    test_graph.set_StaleNum(2)
+    test_graph.set_FilterThreshold(1.0*10**-7)
     # test_graph.set_CalcFunc(calc_sssp)
     test_graph.set_CalcFunc(calc_pagerank)
     MPI.COMM_WORLD.Barrier()
