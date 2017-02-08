@@ -1,9 +1,11 @@
+#include <Python.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <omp.h>
 #include <sched.h>
 int OMPNUM = 2;
 
+extern "C" {
 void multiply_float (int32_t   size,
                      float   * vector_1,
                      float   * vector_2) {
@@ -77,4 +79,6 @@ void pr_dot_product_float(int32_t * indices,           // sparse matrix indices
     }
     value[act_vertex_id[i]] = rel*0.85 + 1.0/vertex_num;
   }
+}
+
 }

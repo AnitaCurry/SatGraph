@@ -1,0 +1,17 @@
+Linux 4.4.0-31-generic (bdp-10) 	02/08/2017 	_x86_64_	(24 CPU)
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+           7.53    0.00    2.86    1.98    0.00   87.62
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+          18.91    0.00    8.04   27.32    0.00   45.73
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+          16.64    0.00   10.32   24.01    0.00   49.02
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+          20.61    0.00   10.54   22.48    0.00   46.37
+
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+          17.59    0.00    8.81   23.50    0.00   50.11
+

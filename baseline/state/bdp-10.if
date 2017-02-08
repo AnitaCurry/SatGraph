@@ -1,0 +1,8 @@
+ifstat: /opt/intel/intelpython27/lib/libcrypto.so.1.0.0: no version information available (required by /usr/lib/x86_64-linux-gnu/libnetsnmp.so.30)
+       em1                 eth2                p8p1                p8p2               Total       
+ KB/s in  KB/s out   KB/s in  KB/s out   KB/s in  KB/s out   KB/s in  KB/s out   KB/s in  KB/s out
+    0.00      0.00      0.00      0.00      0.36      0.25  12080.91  10236.90  12081.28  10237.16
+    0.05      0.00      0.05      0.00      0.53      1.05  10245.86   6567.81  10246.49   6568.85
+    0.00      0.00      0.00      0.00      0.55      1.93  10983.47   8263.29  10984.03   8265.22
+    0.00      0.00      0.00      0.00      0.24      0.29  10412.97  10276.54  10413.21  10276.83
+    0.00      0.00      0.01      0.01      0.03      0.03   9959.25   6848.78   9959.30   6848.81
