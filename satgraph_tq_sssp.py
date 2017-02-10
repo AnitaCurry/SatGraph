@@ -17,7 +17,7 @@ import numpy.ctypeslib as npct
 from numpy import linalg as LA
 from mpi4py import MPI
 
-SLEEP_TIME = 0.1
+SLEEP_TIME = 0.05
 STOP = False
 QueueUpdatedVertex = Queue.Queue()
 LOG_PROGRESS = False
@@ -296,7 +296,13 @@ class BroadThread(threading.Thread):
     def broadcast(self):
         if self.__MPIInfo['MPI_Rank'] == 0:
             Str_UpdatedVertex = None
-            Str_UpdatedVertex = QueueUpdatedVertex.get()
+            while True:
+                try:
+                    Str_UpdatedVertex = QueueUpdatedVertex.get(block=True, timeout=0.1)
+                except:
+                    time.sleep(0.1)
+                    continue
+                break
         else:
             Str_UpdatedVertex = None
         return self.__MPIInfo['MPI_Comm'].bcast(Str_UpdatedVertex, root=0)
@@ -306,7 +312,7 @@ class BroadThread(threading.Thread):
         self.__DataInfo['VertexDataNew'][start_id:end_id][:] = new_vertex[:]
 
         ########################################################################
-        # self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-5] #
+        #self.__DataInfo['VertexData'][start_id:end_id] += updated_vertex[0:-5] #
         ########################################################################
 
         i = int(updated_vertex[-5])
@@ -412,7 +418,11 @@ class UpdateThread(threading.Thread):
                     break
         else:
             while True:
-                Str_UpdatedVertex = QueueUpdatedVertex.get()
+                try:
+                    Str_UpdatedVertex = QueueUpdatedVertex.get(block=True, timeout=0.1)
+                except:
+                    time.sleep(0.1)
+                    continue
                 if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
                     break
                 if self.__stop.is_set():
@@ -484,6 +494,7 @@ class CalcThread(threading.Thread):
                                                self.__GraphInfo,
                                                self.__Dtype_All)
             UpdatedVertex -= self.__DataInfo['VertexData'][start_id:end_id]
+            np.nan_to_num(UpdatedVertex)
             UpdatedVertex[np.abs(UpdatedVertex) < self.__ControlInfo['FilterThreshold']] = 0
             UpdatedVertex = UpdatedVertex.astype(self.__Dtype_All['VertexData'])
             UpdatedVertex = np.append(UpdatedVertex, i)
@@ -816,7 +827,7 @@ if __name__ == '__main__':
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
-    # DataPath = '/home/mapred/GraphData/wiki/edge/'
+    # DataPath = '/mnt/dfs/GraphData/wiki/edge/'
     # VertexNum = 4206800
     # PartitionNum = 21
     #
@@ -824,17 +835,18 @@ if __name__ == '__main__':
     # VertexNum = 787803000
     # PartitionNum = 2379
 
-    # DataPath = '/home/mapred/GraphData/uk/edge2/'
+    # DataPath = '/mnt/dfs/GraphData/uk/edge2/'
     # VertexNum = 787803000
     # PartitionNum = 9490
 
-    # DataPath = '/home/mapred/GraphData/soc/edge2/'
-    # VertexNum = 4847571
-    # PartitionNum = 14
+    DataPath = '/home/mapred/GraphData/soc/edge2/'
+    VertexNum = 4847571
+    PartitionNum = 14
 
-    DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    VertexNum = 41652250
-    PartitionNum = 294
+    #DataPath = '/mnt/dfs/GraphData/twitter/edge2/'
+    #DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    #VertexNum = 41652250
+    #PartitionNum = 294
     
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
@@ -854,12 +866,12 @@ if __name__ == '__main__':
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
     test_graph.set_ThreadNum(5)
-    test_graph.set_MaxIteration(100)
-    test_graph.set_StaleNum(2)
-    test_graph.set_FilterThreshold(1.0*10**-7)
-    # test_graph.set_CalcFunc(calc_sssp)
-    test_graph.set_CalcFunc(calc_pagerank)
+    test_graph.set_MaxIteration(50)
+    test_graph.set_StaleNum(5)
+    test_graph.set_FilterThreshold(1.0*10**-8)
+    test_graph.set_CalcFunc(calc_sssp)
+    # test_graph.set_CalcFunc(calc_pagerank)
     MPI.COMM_WORLD.Barrier()
-    # test_graph.run('inf')
-    test_graph.run('pagerank')
+    test_graph.run('inf')
+    # test_graph.run('pagerank')
     os._exit(0)
