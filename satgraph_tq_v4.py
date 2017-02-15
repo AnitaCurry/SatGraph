@@ -710,7 +710,7 @@ if __name__ == '__main__':
     test_graph.set_GraphInfo(GraphInfo)
     test_graph.set_IP(rank_0_host)
     test_graph.set_port(18086, 18087)
-    test_graph.set_ThreadNum(7)
+    test_graph.set_ThreadNum(5)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(3)
     test_graph.set_FilterThreshold(0.5/VertexNum)

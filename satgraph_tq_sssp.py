@@ -3,6 +3,7 @@ Created on 14 Apr 2016
 
 @author: sunshine
 '''
+import logging
 import os
 import time
 import numpy as np
@@ -17,11 +18,12 @@ import numpy.ctypeslib as npct
 from numpy import linalg as LA
 from mpi4py import MPI
 
-SLEEP_TIME = 0.05
+
+SLEEP_TIME = 1
 STOP = False
 QueueUpdatedVertex = Queue.Queue()
-LOG_PROGRESS = False
 NP_INF = 10**4
+LOCAL_PATH = '/home/mapred/tmp/satgraph'
 LIB_PATH = '/home/mapred/share/SatGraph/lib'
 array_1d_int32 = npct.ndpointer(dtype=np.int32, ndim=1, flags='CONTIGUOUS')
 array_1d_float = npct.ndpointer(dtype=np.float32, ndim=1, flags='CONTIGUOUS')
@@ -96,7 +98,22 @@ def intial_vertex(GraphInfo,
 def load_edgedata_nodata(PartitionID,
                          GraphInfo,
                          Dtype_All):
+    ###############################################################
     edge_path = GraphInfo['DataPath'] + str(PartitionID) + '.edge'
+    ###############################################################
+    '''
+    edge_path = LOCAL_PATH + '/' + str(PartitionID) + '.edge'
+    if not os.path.exists(edge_path):
+        os.system('/opt/hadoop-1.2.1/bin/hadoop ' + \
+                  'fs -get ' + \
+                  '/GraphData/twitter/edge2/' + \
+                  str(PartitionID) + '.edge ' + \
+                  edge_path)
+    
+    if not os.path.exists(edge_path):
+        raise Exception('data not found') 
+    '''
+
     _file = open(edge_path, 'r')
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     # data = np.ones(temp[0], dtype=Dtype_All['EdgeData'])
@@ -298,9 +315,9 @@ class BroadThread(threading.Thread):
             Str_UpdatedVertex = None
             while True:
                 try:
-                    Str_UpdatedVertex = QueueUpdatedVertex.get(block=True, timeout=0.1)
+                    Str_UpdatedVertex = QueueUpdatedVertex.get(block=True, timeout=SLEEP_TIME)
                 except:
-                    time.sleep(0.1)
+                    time.sleep(SLEEP_TIME)
                     continue
                 break
         else:
@@ -419,9 +436,9 @@ class UpdateThread(threading.Thread):
         else:
             while True:
                 try:
-                    Str_UpdatedVertex = QueueUpdatedVertex.get(block=True, timeout=0.1)
+                    Str_UpdatedVertex = QueueUpdatedVertex.get(block=True, timeout=SLEEP_TIME)
                 except:
-                    time.sleep(0.1)
+                    time.sleep(SLEEP_TIME)
                     continue
                 if len(Str_UpdatedVertex) == 4 and Str_UpdatedVertex == 'exit':
                     break
@@ -767,10 +784,10 @@ class satgraph():
 
         gc_time_start = time.time()
         Old_Vertex_ = self.__DataInfo['VertexData'].copy()
-        if self.__MPIInfo['MPI_Rank'] == 0:
-            start_time = time.time()
-            app_start_time = time.time()
-            log_start_time = time.time()
+        # if self.__MPIInfo['MPI_Rank'] == 0:
+        start_time = time.time()
+        app_start_time = time.time()
+        log_start_time = time.time()
         Iteration = 0
         global STOP
 
@@ -782,25 +799,12 @@ class satgraph():
                 gc_time_start = gc_time_end
                 gc.collect()
 
-            if LOG_PROGRESS == True and self.__MPIInfo['MPI_Rank'] == 0:
-                log_end_time = time.time()
-                if log_end_time - log_start_time >= 30:
-                    log_start_time = log_end_time
-                    progress = \
-                        self.__ControlInfo['IterationReport'] > self.__ControlInfo['IterationNum']
-                    progress = progress.sum()
-                    progress = progress*1.0/self.__GraphInfo['PartitionNum']
-                    print self.__ControlInfo['IterationNum'], "->", progress
-
             if NewIteration:
                 end_time = time.time()
                 diff_vertex = self.__DataInfo['VertexData'] - Old_Vertex_ != 0
                 diff_vertex = diff_vertex.sum()
                 if self.__MPIInfo['MPI_Rank'] == 0:
-                    print end_time - start_time, \
-                        ' # Iter: ',\
-                         CurrentIteration, \
-                         '->', diff_vertex
+                    logging.info('Iteration %s, Used %s seconds, Updated %s Vertex', CurrentIteration, end_time-start_time, diff_vertex)
                 if diff_vertex == 0 and CurrentIteration > 5:
                     STOP = True
                 Old_Vertex_[:] = self.__DataInfo['VertexData'][:]
@@ -820,6 +824,7 @@ class satgraph():
 
 if __name__ == '__main__':
 
+    logging.getLogger().setLevel(logging.INFO)
     mkl_rt = ctypes.CDLL('libmkl_rt.so')
     mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(2)))
     Dtype_VertexData = np.float32
@@ -831,22 +836,25 @@ if __name__ == '__main__':
     # VertexNum = 4206800
     # PartitionNum = 21
     #
-    # DataPath = '/home/mapred/GraphData/uk/edge3/'
-    # VertexNum = 787803000
-    # PartitionNum = 2379
+    #DataPath = '/home/mapred/GraphData/uk/edge3/'
+    #VertexNum = 787803000
+    #PartitionNum = 2379
 
     # DataPath = '/mnt/dfs/GraphData/uk/edge2/'
     # VertexNum = 787803000
     # PartitionNum = 9490
 
-    DataPath = '/home/mapred/GraphData/soc/edge2/'
-    VertexNum = 4847571
-    PartitionNum = 14
+    # DataPath = '/home/mapred/GraphData/soc/edge2/'
+    # VertexNum = 4847571
+    # PartitionNum = 14
 
-    #DataPath = '/mnt/dfs/GraphData/twitter/edge2/'
-    #DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    #VertexNum = 41652250
-    #PartitionNum = 294
+    DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    VertexNum = 41652250
+    PartitionNum = 294
+
+    # DataPath = '/home/mapred/GraphData/eu/edge/'
+    # VertexNum = 1070560000
+    # PartitionNum = 5096
     
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
@@ -857,8 +865,26 @@ if __name__ == '__main__':
     rank_0_host = MPI.COMM_WORLD.bcast(rank_0_host, root=0)
     all_hosts = MPI.Get_processor_name()
     all_hosts = MPI.COMM_WORLD.gather(all_hosts, root=0)
+    all_hosts = MPI.COMM_WORLD.bcast(all_hosts, root=0)
     if MPI.COMM_WORLD.Get_rank() == 0:
         test_graph.set_Hosts(all_hosts)
+
+    '''
+    host_to_rank = {}
+    j = 0
+    for i in all_hosts:
+        host_to_rank[i] = j
+        j += 1
+
+    if (MPI.COMM_WORLD.Get_rank() in host_to_rank.values()):
+        d = os.path.dirname(LOCAL_PATH)
+        if not os.path.exists(d):
+            os.mkdir(LOCAL_PATH)
+        else:
+            os.system('rm -rf ' + LOCAL_PATH)
+            os.mkdir(LOCAL_PATH)
+    MPI.COMM_WORLD.Barrier()
+    '''
 
     test_graph.set_Dtype_All(Dtype_All)
     test_graph.set_Sync('BSP')
@@ -868,10 +894,11 @@ if __name__ == '__main__':
     test_graph.set_ThreadNum(5)
     test_graph.set_MaxIteration(50)
     test_graph.set_StaleNum(5)
-    test_graph.set_FilterThreshold(1.0*10**-8)
-    test_graph.set_CalcFunc(calc_sssp)
-    # test_graph.set_CalcFunc(calc_pagerank)
+    #test_graph.set_FilterThreshold(1.0*10**-8)
+    test_graph.set_FilterThreshold(0)
+    #test_graph.set_CalcFunc(calc_sssp)
+    test_graph.set_CalcFunc(calc_pagerank)
     MPI.COMM_WORLD.Barrier()
-    test_graph.run('inf')
-    # test_graph.run('pagerank')
+    #test_graph.run('inf')
+    test_graph.run('pagerank')
     os._exit(0)
