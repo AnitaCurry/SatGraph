@@ -12,8 +12,7 @@ import scipy.sparse as sparse
 import threading
 import Queue
 import zmq
-#import snappy
-import zlib as snappy
+import snappy
 import ctypes
 import gc
 import numpy.ctypeslib as npct
@@ -22,7 +21,7 @@ from mpi4py import MPI
 import sys
 
 
-SLEEP_TIME = 0.1
+SLEEP_TIME = 0.05
 STOP = False
 QueueUpdatedVertex = Queue.Queue()
 NP_INF = 10**4
@@ -241,7 +240,7 @@ def calc_sssp(PartitionID,
               DataInfo,
               GraphInfo,
               Dtype_All):         
-    a = time.time()
+
     # EdgeMatrix, start_id, end_id = load_edgedata(PartitionID, GraphInfo, Dtype_All)
     indices, indptr, shape_0, shape_1, start_id, end_id = \
         load_edgedata_nodata(PartitionID, GraphInfo, Dtype_All)
@@ -273,8 +272,6 @@ def calc_sssp(PartitionID,
 
     del indptr, indices
     UpdatedVertex = UpdatedVertex.astype(Dtype_All['VertexData'])
-    b = time.time()
-    print b-a
     return UpdatedVertex, start_id, end_id
 
 
@@ -361,9 +358,7 @@ class BroadThread(threading.Thread):
         UpdatedVertex = self.broadcast()
         if len(UpdatedVertex) == 4 and UpdatedVertex == 'exit':
             return -1
-        a = len(UpdatedVertex)
         UpdatedVertex = snappy.decompress(UpdatedVertex)
-        b = len(UpdatedVertex)
         UpdatedVertex = np.fromstring(UpdatedVertex, dtype=self.__Dtype_All['VertexData'])
 
         start_id = int(UpdatedVertex[-4]) * 100000 + int(UpdatedVertex[-3])
@@ -378,7 +373,6 @@ class BroadThread(threading.Thread):
             self.update_BSP(UpdatedVertex, start_id, end_id)
         else:
             raise Exception('Not Support Sync Mode')
-        MPI.COMM_WORLD.Barrier()
         del UpdatedVertex
         return 1
 
@@ -809,16 +803,16 @@ class satgraph():
 if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
-    # Dtype_VertexData = np.double
-    Dtype_VertexData = np.float32
+    Dtype_VertexData = np.double
+    # Dtype_VertexData = np.float32
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
     #
-    DataPath = '/home/mapred/GraphData/uk/edge3/'
-    VertexNum = 787803000
-    PartitionNum = 2379
+    #DataPath = '/home/mapred/GraphData/uk/edge3/'
+    #VertexNum = 787803000
+    #PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/soc/edge2/'
     # VertexNum = 4847571
@@ -832,9 +826,9 @@ if __name__ == '__main__':
     #VertexNum = 133633040
     #PartitionNum = 500
 
-    #DataPath = '/home/mapred/GraphData/eu/edge/'
-    #VertexNum = 1070560000
-    #PartitionNum = 5096
+    DataPath = '/home/mapred/GraphData/eu/edge/'
+    VertexNum = 1070560000
+    PartitionNum = 5096
     
     GraphInfo = (DataPath, VertexNum, PartitionNum)
     test_graph = satgraph()
