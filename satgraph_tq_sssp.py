@@ -250,7 +250,7 @@ def calc_sssp(PartitionID,
         return np.array([], dtype=Dtype_All['VertexData']), 0, 0
     if IterationNum == 0 and PartitionID == 0:
         # return np.array([0], dtype=Dtype_All['VertexData']), 727628347, 727628348
-        return np.array([0], dtype=Dtype_All['VertexData']), 0, 1
+        return np.array([0], dtype=Dtype_All['VertexData']), 1, 2
 
     VertexData = DataInfo['VertexData'][start_id:end_id]
     UpdatedVertex = VertexData.copy()
@@ -809,24 +809,24 @@ class satgraph():
 if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
-    # Dtype_VertexData = np.double
-    Dtype_VertexData = np.float32
+    Dtype_VertexData = np.double
+    #Dtype_VertexData = np.float32
     Dtype_VertexEdgeInfo = np.int32
     Dtype_EdgeData = np.bool
     Dtype_All = (Dtype_VertexData, Dtype_VertexEdgeInfo, Dtype_EdgeData)
 
     #
-    DataPath = '/home/mapred/GraphData/uk/edge3/'
-    VertexNum = 787803000
-    PartitionNum = 2379
+    #DataPath = '/home/mapred/GraphData/uk/edge3/'
+    #VertexNum = 787803000
+    #PartitionNum = 2379
 
     # DataPath = '/home/mapred/GraphData/soc/edge2/'
     # VertexNum = 4847571
     # PartitionNum = 14
 
-    #DataPath = '/home/mapred/GraphData/twitter/edge2/'
-    #VertexNum = 41652250
-    #PartitionNum = 294
+    DataPath = '/home/mapred/GraphData/twitter/edge2/'
+    VertexNum = 41652250
+    PartitionNum = 294
 
     #DataPath = '/home/mapred/GraphData/webuk_2/'
     #VertexNum = 133633040
@@ -876,9 +876,9 @@ if __name__ == '__main__':
     test_graph.set_StaleNum(5)
     # test_graph.set_FilterThreshold(0.0001/VertexNum)
     test_graph.set_FilterThreshold(0)
-    #test_graph.set_CalcFunc(calc_sssp)
-    test_graph.set_CalcFunc(calc_pagerank)
+    test_graph.set_CalcFunc(calc_sssp)
+    #test_graph.set_CalcFunc(calc_pagerank)
     MPI.COMM_WORLD.Barrier()
-    #test_graph.run('inf')
-    test_graph.run('pagerank')
+    test_graph.run('inf')
+    #test_graph.run('pagerank')
     os._exit(0)

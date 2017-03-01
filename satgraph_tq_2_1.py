@@ -22,9 +22,8 @@ from mpi4py import MPI
 import sys
 import re
 import math
-import multiprocessing
 
-SLEEP_TIME = 1
+SLEEP_TIME = 0.1
 STOP = False
 QueueUpdatedVertex = Queue.Queue()
 QueueBroadcastVertex = Queue.Queue()
@@ -203,12 +202,6 @@ def intial_vertex(GraphInfo,
         return np.ones(GraphInfo['VertexNum'], dtype=Dtype_All[0])
 
 
-def read_data(path, q):
-    f = open(path, 'r')
-    data = f.read()
-    q.put(data)
-    f.close()
-
 def load_edgedata_nodata(PartitionID,
                          GraphInfo,
                          Dtype_All):
@@ -235,14 +228,6 @@ def load_edgedata_nodata(PartitionID,
     '''
 
     _file = open(edge_path, 'r')
-
-    #q = multiprocessing.Queue()
-    #read_process = multiprocessing.Process(target=read_data, args=(edge_path, q,))
-    #read_process.start()
-    #temp = q.get()
-    #read_process.join()
-    #temp = np.fromstring(temp, dtype=Dtype_All['VertexEdgeInfo'])
-    
     temp = np.fromfile(_file, dtype=Dtype_All['VertexEdgeInfo'])
     indices = temp[5:5 + int(temp[1])]
     indptr = temp[5 + int(temp[1]):5 + int(temp[1]) + int(temp[2])]
@@ -927,16 +912,16 @@ class satgraph():
         TaskThreadPool = []
 
         
-        #if self.__MPIInfo['MPI_Rank'] != 0:
-        for i in range(self.__ThreadNum):
-            new_task_thead = CalcThread(self.__DataInfo,
+        if self.__MPIInfo['MPI_Rank'] != 0:
+            for i in range(self.__ThreadNum):
+                new_task_thead = CalcThread(self.__DataInfo,
                                             self.__GraphInfo,
                                             self.__ControlInfo,
                                             self.__IP,
                                             self.__TaskqPort,
                                             self.__Dtype_All)
-            TaskThreadPool.append(new_task_thead)
-            new_task_thead.start()
+                TaskThreadPool.append(new_task_thead)
+                new_task_thead.start()
         return UpdateVertexThread, TaskSchedulerThread, BroadVertexThread, UpdateBstThread, TaskThreadPool
 
     def destroy_threads(self,
@@ -946,9 +931,9 @@ class satgraph():
                         UpdateBstThread,
                         TaskThreadPool):
 
-        #if self.__MPIInfo['MPI_Rank'] != 0:
-        for i in range(self.__ThreadNum):
-            TaskThreadPool[i].stop()
+        if self.__MPIInfo['MPI_Rank'] != 0:
+            for i in range(self.__ThreadNum):
+                TaskThreadPool[i].stop()
 
         if (self.__MPIInfo['MPI_Rank'] != 0):
             UpdateVertexThread.stop(-1)
