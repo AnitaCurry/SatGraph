@@ -1,1 +1,3 @@
-/opt/intel/impi/2017.2.174/bin64/mpirun -ppn 2 -f ../hostfile2 -env LD_LIBRARY_PATH $LD_LIBRARY_LIB:/opt/intel/impi/2017.2.174/intel64/lib  /opt/intel/intelpython27/bin/python satgraph_tq_2.py
+#/opt/openmpi/bin/mpirun -n 1 -use-hwthread-cpus --map-by node -cpus-per-proc 24 ./main
+#/opt/openmpi/bin/mpirun -n 1 -hostfile ../hostfile2  -use-hwthread-cpus --map-by node -cpus-per-proc 24 ./main
+/opt/mpich/bin/mpirun -n 9 -f ../hostfile2  ./pagerank
