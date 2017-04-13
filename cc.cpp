@@ -3,8 +3,8 @@
  Name        : GraphPS.c
  Author      : Sun Peng
  Version     :
- Copyright   : Your copyright notice
- Description : Compute Pi in MPI C++
+ Copyright   : 
+ Description : Graph/CC
  ============================================================================
  */
 
