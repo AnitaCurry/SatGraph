@@ -2,7 +2,7 @@
  * GraphPS.h
  *
  *  Created on: 25 Feb 2017
- *      Author: sunshine
+ *      Author: Sun Peng
  */
 
 #ifndef GRAPHPS_H_
